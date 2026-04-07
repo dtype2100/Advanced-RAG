@@ -127,9 +127,7 @@ def search(query: str, top_k: int | None = None) -> list[dict[str, Any]]:
         {
             "text": hit.payload.get("text", "") if hit.payload else "",
             "score": hit.score,
-            "metadata": {
-                key: val for key, val in (hit.payload or {}).items() if key != "text"
-            },
+            "metadata": {key: val for key, val in (hit.payload or {}).items() if key != "text"},
         }
         for hit in response.points
     ]

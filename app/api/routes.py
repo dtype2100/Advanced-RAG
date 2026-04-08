@@ -41,6 +41,8 @@ async def health():
 
     return HealthResponse(
         status="ok",
+        llm_backend=settings.llm_backend,
+        llm_model=settings.llm_model,
         qdrant=qdrant_status,
         collection=collection_status,
     )
@@ -89,10 +91,10 @@ async def semantic_search(req: SearchRequest):
 @router.post("/query", response_model=QueryResponse, tags=["rag"])
 async def rag_query(req: QueryRequest):
     """Run the full self-corrective RAG pipeline (retrieve → grade → rewrite → generate)."""
-    if not settings.openai_api_key:
+    if not settings.using_vllm and not settings.openai_api_key:
         raise HTTPException(
             status_code=503,
-            detail="OPENAI_API_KEY not configured. Set it in .env or environment.",
+            detail="LLM backend not configured. Set LLM_BACKEND=vllm or provide OPENAI_API_KEY.",
         )
 
     from app.rag.graph import rag_chain

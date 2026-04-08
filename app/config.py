@@ -4,12 +4,20 @@ from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     """Application settings loaded from environment variables / .env file."""
 
-    # OpenAI
+    # OpenAI (used when llm_backend=openai)
     openai_api_key: str = ""
 
-    # LLM
-    llm_model: str = "gpt-4o-mini"
+    # LLM backend: "openai" or "vllm"
+    llm_backend: str = "vllm"
+
+    # LLM model name (OpenAI model or vLLM model name)
+    llm_model: str = "Qwen/Qwen2.5-0.5B-Instruct"
     llm_temperature: float = 0.0
+
+    # vLLM server settings
+    vllm_base_url: str = "http://localhost:8001/v1"
+    vllm_model_path: str = "/workspace/models/Qwen2.5-0.5B-Instruct"
+    vllm_max_model_len: int = 2048
 
     # Qdrant – empty url triggers in-memory mode
     qdrant_url: str = ""
@@ -32,6 +40,10 @@ class Settings(BaseSettings):
     @property
     def qdrant_in_memory(self) -> bool:
         return not self.qdrant_url
+
+    @property
+    def using_vllm(self) -> bool:
+        return self.llm_backend == "vllm"
 
 
 settings = Settings()

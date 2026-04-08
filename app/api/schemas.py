@@ -57,5 +57,7 @@ class SearchResponse(BaseModel):
 
 class HealthResponse(BaseModel):
     status: str
+    llm_backend: str
+    llm_model: str
     qdrant: str
     collection: str

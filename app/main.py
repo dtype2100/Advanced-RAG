@@ -25,7 +25,10 @@ async def lifespan(app: FastAPI):
     qdrant_mode = "in-memory" if settings.qdrant_in_memory else settings.qdrant_url
     logger.info("Qdrant mode: %s", qdrant_mode)
     logger.info("Embedding model: %s", settings.embedding_model)
+    logger.info("LLM backend: %s", settings.llm_backend)
     logger.info("LLM model: %s", settings.llm_model)
+    if settings.using_vllm:
+        logger.info("vLLM endpoint: %s", settings.vllm_base_url)
 
     ensure_collection()
     logger.info("Collection '%s' ready", settings.collection_name)

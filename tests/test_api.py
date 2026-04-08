@@ -16,6 +16,8 @@ def test_health(client):
     data = resp.json()
     assert data["status"] == "ok"
     assert data["qdrant"] == "connected"
+    assert "llm_backend" in data
+    assert "llm_model" in data
 
 
 def test_ingest_and_search(client):
@@ -43,7 +45,7 @@ def test_ingest_empty_fails(client):
     assert resp.status_code == 422
 
 
-def test_query_without_api_key(client):
-    """RAG query should fail gracefully when OPENAI_API_KEY is not set."""
+def test_query_without_llm_backend(client):
+    """RAG query should fail or return error when LLM backend is unreachable."""
     resp = client.post("/api/v1/query", json={"question": "What is Python?"})
-    assert resp.status_code in (503, 500)
+    assert resp.status_code in (500, 503)

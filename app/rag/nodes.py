@@ -23,6 +23,14 @@ logger = logging.getLogger(__name__)
 
 
 def _get_llm() -> ChatOpenAI:
+    """Create LLM instance based on configured backend (OpenAI or vLLM)."""
+    if settings.using_vllm:
+        return ChatOpenAI(
+            model=settings.llm_model,
+            temperature=settings.llm_temperature,
+            openai_api_key="EMPTY",
+            openai_api_base=settings.vllm_base_url,
+        )
     return ChatOpenAI(
         model=settings.llm_model,
         temperature=settings.llm_temperature,

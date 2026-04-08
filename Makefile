@@ -24,7 +24,7 @@ vllm-serve:
 	@echo "Starting vLLM server on port 8001..."
 	VLLM_CPU_KVCACHE_SPACE=4 \
 	VLLM_CPU_OMP_THREADS_BIND=0-3 \
-	python -m vllm.entrypoints.openai.api_server \
+	python3 -m vllm.entrypoints.openai.api_server \
 		--model $(or $(VLLM_MODEL_PATH),/workspace/models/Qwen2.5-0.5B-Instruct) \
 		--served-model-name Qwen/Qwen2.5-0.5B-Instruct \
 		--host 0.0.0.0 \

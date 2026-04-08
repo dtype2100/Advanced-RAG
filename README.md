@@ -1,6 +1,6 @@
 # Advanced-RAG
 
-Self-corrective RAG system built with **FastAPI**, **LangGraph**, and **Qdrant**.
+Self-corrective RAG system built with **FastAPI**, **LangGraph**, **Qdrant**, and **vLLM**.
 
 ## Architecture
 
@@ -13,26 +13,57 @@ Question → Retrieve (Qdrant) → Grade Documents (LLM) →┐
 
 **Key features:**
 - Self-corrective retrieval: automatically rewrites queries when documents are irrelevant
+- **vLLM**: local HuggingFace model serving via OpenAI-compatible API (CPU/GPU)
 - Qdrant vector store with FastEmbed (local embeddings, no API calls for embedding)
 - LangGraph `StateGraph` with conditional edges for the RAG loop
 - FastAPI REST API with Swagger docs at `/docs`
-- In-memory mode by default (no external services needed to start)
+- Dual LLM backend: vLLM (local) or OpenAI (remote)
 
 ## Quick Start
 
+### 1. Install Dependencies
+
 ```bash
-# Install dependencies
 pip install -e ".[dev]"
+```
 
-# Copy env and set your OpenAI key (required for /query RAG endpoint)
+### 2. Download Model from HuggingFace
+
+```bash
+huggingface-cli download Qwen/Qwen2.5-0.5B-Instruct --local-dir models/Qwen2.5-0.5B-Instruct
+```
+
+### 3. Start vLLM Server
+
+```bash
+# Install vLLM CPU wheel (if not already installed)
+export VLLM_VERSION=0.19.0
+pip install "https://github.com/vllm-project/vllm/releases/download/v${VLLM_VERSION}/vllm-${VLLM_VERSION}+cpu-cp38-abi3-manylinux_2_35_x86_64.whl" \
+  --extra-index-url https://download.pytorch.org/whl/cpu
+
+# Start vLLM server (port 8001)
+make vllm-serve
+```
+
+### 4. Start RAG API Server
+
+```bash
 cp .env.example .env
-# edit .env → set OPENAI_API_KEY
-
-# Run dev server
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-
-# Or use Make
 make run
+```
+
+### 5. Test the Pipeline
+
+```bash
+# Ingest documents
+curl -X POST http://localhost:8000/api/v1/documents \
+  -H "Content-Type: application/json" \
+  -d '{"documents": [{"text": "Your document text here"}]}'
+
+# RAG query (uses vLLM)
+curl -X POST http://localhost:8000/api/v1/query \
+  -H "Content-Type: application/json" \
+  -d '{"question": "Your question here"}'
 ```
 
 ## API Endpoints
@@ -40,25 +71,39 @@ make run
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/` | Service info |
-| GET | `/api/v1/health` | Health check (Qdrant status) |
+| GET | `/api/v1/health` | Health check (Qdrant + LLM status) |
 | POST | `/api/v1/documents` | Ingest documents into vector store |
 | POST | `/api/v1/search` | Semantic search (no LLM required) |
-| POST | `/api/v1/query` | Full RAG pipeline (requires OpenAI key) |
+| POST | `/api/v1/query` | Full self-corrective RAG pipeline |
+
+## LLM Backend Configuration
+
+### vLLM (default, local)
+
+```env
+LLM_BACKEND=vllm
+LLM_MODEL=Qwen/Qwen2.5-0.5B-Instruct
+VLLM_BASE_URL=http://localhost:8001/v1
+VLLM_MODEL_PATH=/workspace/models/Qwen2.5-0.5B-Instruct
+```
+
+### OpenAI (remote)
+
+```env
+LLM_BACKEND=openai
+LLM_MODEL=gpt-4o-mini
+OPENAI_API_KEY=sk-your-key
+```
 
 ## Development
 
 ```bash
-# Install with dev tools
-make dev
-
-# Run linter
-make lint
-
-# Auto-format
-make format
-
-# Run tests
-make test
+make dev       # Install with dev tools
+make lint      # Run linter
+make format    # Auto-format
+make test      # Run tests
+make run       # Start FastAPI dev server
+make vllm-serve  # Start vLLM on port 8001
 ```
 
 ## Project Structure
@@ -66,30 +111,33 @@ make test
 ```
 app/
 ├── main.py              # FastAPI app with lifespan
-├── config.py            # Pydantic settings from .env
+├── config.py            # Pydantic settings (vLLM/OpenAI dual backend)
 ├── api/
 │   ├── routes.py        # API endpoint handlers
 │   └── schemas.py       # Request/response models
 ├── rag/
 │   ├── graph.py         # LangGraph StateGraph (self-corrective RAG)
-│   ├── nodes.py         # Graph node functions (retrieve, grade, rewrite, generate)
+│   ├── nodes.py         # Graph nodes (retrieve, grade, rewrite, generate)
 │   ├── prompts.py       # LLM prompt templates
 │   └── state.py         # RAGState TypedDict
 └── vectorstore/
     └── store.py         # Qdrant wrapper with FastEmbed
+models/                  # HuggingFace models (gitignored)
 tests/
 ├── test_api.py          # API endpoint tests
 └── test_vectorstore.py  # Vector store unit tests
 ```
 
-## Configuration
-
-All settings via environment variables or `.env`:
+## Configuration Reference
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `OPENAI_API_KEY` | (required for /query) | OpenAI API key |
-| `LLM_MODEL` | `gpt-4o-mini` | LLM model name |
+| `LLM_BACKEND` | `vllm` | `vllm` or `openai` |
+| `LLM_MODEL` | `Qwen/Qwen2.5-0.5B-Instruct` | Model name |
+| `VLLM_BASE_URL` | `http://localhost:8001/v1` | vLLM server endpoint |
+| `VLLM_MODEL_PATH` | `/workspace/models/Qwen2.5-0.5B-Instruct` | Local model path |
+| `VLLM_MAX_MODEL_LEN` | `2048` | Max context length |
+| `OPENAI_API_KEY` | (empty) | Required if LLM_BACKEND=openai |
 | `EMBEDDING_MODEL` | `BAAI/bge-small-en-v1.5` | FastEmbed model |
 | `QDRANT_URL` | (empty = in-memory) | Qdrant server URL |
 | `COLLECTION_NAME` | `advanced_rag` | Qdrant collection name |

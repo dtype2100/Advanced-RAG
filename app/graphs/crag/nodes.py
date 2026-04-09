@@ -105,7 +105,7 @@ def hybrid_retrieve(state: CRAGState) -> dict:
         for r in store.search(q, top_k=settings.max_retrieval_docs):
             seen.setdefault(r["text"], r)
 
-    children = list(seen.keys())
+    children = list(seen.values())
     return {"retrieved_children": children, "retrieval_attempt": attempt}
 
 

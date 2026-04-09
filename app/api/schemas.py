@@ -57,6 +57,11 @@ class SearchResponse(BaseModel):
 
 class HealthResponse(BaseModel):
     status: str
+    vector_backend: str
+    embedding_backend: str
+    embedding_model: str
+    reranker_backend: str
+    reranker_model: str
     llm_backend: str
     llm_model: str
     qdrant: str

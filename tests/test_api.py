@@ -18,6 +18,9 @@ def test_health(client):
     assert data["qdrant"] == "connected"
     assert "llm_backend" in data
     assert "llm_model" in data
+    assert data.get("vector_backend") == "qdrant"
+    assert "embedding_model" in data
+    assert "reranker_backend" in data
 
 
 def test_ingest_and_search(client):

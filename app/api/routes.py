@@ -16,8 +16,10 @@ from app.api.schemas import (
     SearchResponse,
     SearchResult,
 )
-from app.config import settings
+from app.core.config import settings
+from app.services.search import search_documents
 from app.vectorstore import store
+from app.vectorstore.factory import get_vector_store
 
 logger = logging.getLogger(__name__)
 
@@ -30,21 +32,19 @@ router = APIRouter()
 @router.get("/health", response_model=HealthResponse, tags=["system"])
 async def health():
     """Health check including Qdrant connection status."""
-    try:
-        client = store.get_client()
-        collections = [c.name for c in client.get_collections().collections]
-        qdrant_status = "connected"
-        collection_status = "exists" if settings.collection_name in collections else "not_created"
-    except Exception as e:
-        qdrant_status = f"error: {e}"
-        collection_status = "unknown"
+    snap = get_vector_store().health_snapshot()
 
     return HealthResponse(
         status="ok",
+        vector_backend=settings.vector_backend,
+        embedding_backend=settings.embedding_backend,
+        embedding_model=settings.embedding_model,
+        reranker_backend=settings.reranker_backend,
+        reranker_model=settings.reranker_model,
         llm_backend=settings.llm_backend,
         llm_model=settings.llm_model,
-        qdrant=qdrant_status,
-        collection=collection_status,
+        qdrant=snap.get("qdrant", "unknown"),
+        collection=snap.get("collection", "unknown"),
     )
 
 
@@ -73,7 +73,7 @@ async def ingest_documents(req: IngestRequest):
 async def semantic_search(req: SearchRequest):
     """Perform semantic search without RAG generation."""
     try:
-        results = store.search(req.query, top_k=req.top_k)
+        results = search_documents(req.query, top_k=req.top_k)
     except Exception as e:
         logger.exception("Search failed")
         raise HTTPException(status_code=500, detail=str(e)) from e

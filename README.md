@@ -71,7 +71,7 @@ curl -X POST http://localhost:8000/api/v1/query \
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/` | Service info |
-| GET | `/api/v1/health` | Health check (Qdrant + LLM status) |
+| GET | `/api/v1/health` | Health check (vector backend, embedding, reranker, LLM) |
 | POST | `/api/v1/documents` | Ingest documents into vector store |
 | POST | `/api/v1/search` | Semantic search (no LLM required) |
 | POST | `/api/v1/query` | Full self-corrective RAG pipeline |
@@ -111,7 +111,15 @@ make vllm-serve  # Start vLLM on port 8001
 ```
 app/
 ├── main.py              # FastAPI app with lifespan
-├── config.py            # Pydantic settings (vLLM/OpenAI dual backend)
+├── config.py            # Re-exports settings (see core/config.py)
+├── core/
+│   └── config.py        # Pydantic settings (env-driven backends)
+├── providers/
+│   ├── llm.py           # LLM factory (vLLM / OpenAI)
+│   ├── embeddings.py    # Embedding backend (FastEmbed)
+│   └── reranker.py      # Optional cross-encoder reranker
+├── services/
+│   └── search.py        # Vector search + optional reranking
 ├── api/
 │   ├── routes.py        # API endpoint handlers
 │   └── schemas.py       # Request/response models
@@ -121,8 +129,11 @@ app/
 │   ├── prompts.py       # LLM prompt templates
 │   └── state.py         # RAGState TypedDict
 └── vectorstore/
-    └── store.py         # Qdrant wrapper with FastEmbed
-models/                  # HuggingFace models (gitignored)
+    ├── factory.py       # VECTOR_BACKEND selection
+    ├── qdrant_backend.py
+    ├── memory_backend.py
+    └── store.py         # Facade for ingest/search
+models/                  # HuggingFace weights (gitignored)
 tests/
 ├── test_api.py          # API endpoint tests
 └── test_vectorstore.py  # Vector store unit tests
@@ -138,7 +149,13 @@ tests/
 | `VLLM_MODEL_PATH` | `/workspace/models/Qwen2.5-0.5B-Instruct` | Local model path |
 | `VLLM_MAX_MODEL_LEN` | `2048` | Max context length |
 | `OPENAI_API_KEY` | (empty) | Required if LLM_BACKEND=openai |
-| `EMBEDDING_MODEL` | `BAAI/bge-small-en-v1.5` | FastEmbed model |
+| `VECTOR_BACKEND` | `qdrant` | `qdrant` or `memory` (no Qdrant process) |
+| `EMBEDDING_BACKEND` | `fastembed` | Embedding implementation |
+| `EMBEDDING_MODEL` | `BAAI/bge-small-en-v1.5` | FastEmbed model id |
+| `EMBEDDING_VECTOR_SIZE` | `0` | Override vector dim if not in built-in map (0 = auto) |
+| `RERANKER_BACKEND` | `none` | `none` or `fastembed` (cross-encoder) |
+| `RERANKER_MODEL` | `Xenova/ms-marco-MiniLM-L-6-v2` | FastEmbed reranker id |
+| `RERANK_CANDIDATES` | `20` | Vector top-N before reranking |
 | `QDRANT_URL` | (empty = in-memory) | Qdrant server URL |
 | `COLLECTION_NAME` | `advanced_rag` | Qdrant collection name |
 | `MAX_RETRIEVAL_DOCS` | `5` | Top-K retrieval count |

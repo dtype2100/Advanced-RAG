@@ -17,6 +17,7 @@ EVAL_SCRIPTS = [
     "evals/offline/run_clarification_eval.py",
     "evals/offline/run_retrieval_eval.py",
     "evals/offline/run_answer_eval.py",
+    "evals/offline/run_judge_eval.py",
 ]
 
 

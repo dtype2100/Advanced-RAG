@@ -18,14 +18,18 @@ from app.providers.vectorstore_provider import get_vectorstore
 logger = logging.getLogger(__name__)
 
 
+def _active_query(state: CRAGState) -> str:
+    """Return the most refined query available in state."""
+    return (
+        state.get("rewritten_query") or state.get("clarified_query") or state.get("user_query", "")
+    )
+
+
 # ── analyze_query ─────────────────────────────────────────────────────────────
 
 
 def analyze_query(state: CRAGState) -> dict:
-    """Detect ambiguity, missing slots, and intent from the raw user query.
-
-    Delegates to ``query_analyzer`` and ``clarification_policy``.
-    """
+    """Detect ambiguity, missing slots, and intent from the raw user query."""
     from app.rag.policies.clarification_policy import needs_clarification
     from app.rag.query.clarification import generate_clarification_question
     from app.rag.query.query_analyzer import analyze
@@ -44,11 +48,7 @@ def analyze_query(state: CRAGState) -> dict:
 
 
 def ask_clarification(state: CRAGState) -> dict:
-    """Surface the clarification question.
-
-    In an API context this node marks the graph as pending user input.
-    The ``clarification_question`` has already been set by ``analyze_query``.
-    """
+    """Mark the graph as pending user input and surface the clarification question."""
     logger.info("Clarification needed: %s", state.get("clarification_question"))
     return {"final_status": "clarification_needed"}
 
@@ -81,15 +81,31 @@ def rewrite_query(state: CRAGState) -> dict:
 
 
 def hybrid_retrieve(state: CRAGState) -> dict:
-    """Retrieve relevant child chunks using hybrid (vector + BM25) search."""
-    query = state.get("rewritten_query") or state.get("clarified_query") or state["user_query"]
+    """Retrieve relevant child chunks using hybrid (vector + BM25) search.
+
+    When ``multi_query`` mode is enabled via env var ``MULTI_QUERY=1``,
+    generates additional query variants and fuses the retrieval results.
+    """
+    import os
+
+    query = _active_query(state)
     attempt = state.get("retrieval_attempt", 0) + 1
     logger.info("Retrieval attempt %d for: %s", attempt, query)
 
-    store = get_vectorstore()
-    results = store.search(query, top_k=settings.max_retrieval_docs)
-    children = [r["text"] for r in results]
+    queries = [query]
+    if os.getenv("MULTI_QUERY", "0") == "1":
+        from app.rag.query.multi_query_generator import generate_multi_query
 
+        queries = generate_multi_query(query, n=3)
+        logger.info("Multi-query: %d variants", len(queries))
+
+    store = get_vectorstore()
+    seen: dict[str, dict] = {}
+    for q in queries:
+        for r in store.search(q, top_k=settings.max_retrieval_docs):
+            seen.setdefault(r["text"], r)
+
+    children = list(seen.values())
     return {"retrieved_children": children, "retrieval_attempt": attempt}
 
 
@@ -100,7 +116,6 @@ def expand_context(state: CRAGState) -> dict:
     """Expand child hits to parent / larger chunks (small-to-big strategy)."""
     children = state.get("retrieved_children", [])
     logger.info("Expanding %d child chunks to parent context", len(children))
-    # Without a docstore, fall back to using children as-is.
     return {"expanded_contexts": children}
 
 
@@ -110,7 +125,7 @@ def expand_context(state: CRAGState) -> dict:
 def rerank_context(state: CRAGState) -> dict:
     """Rerank retrieved/expanded chunks and keep the top candidates."""
     contexts = state.get("expanded_contexts") or state.get("retrieved_children", [])
-    query = state.get("rewritten_query") or state.get("clarified_query") or state["user_query"]
+    query = _active_query(state)
     logger.info("Reranking %d context chunks", len(contexts))
 
     from app.providers.reranker_provider import get_reranker
@@ -127,9 +142,9 @@ def rerank_context(state: CRAGState) -> dict:
 
 def generate_answer(state: CRAGState) -> dict:
     """Generate a grounded answer from the ranked context chunks."""
-    query = state.get("rewritten_query") or state.get("clarified_query") or state["user_query"]
+    query = _active_query(state)
     contexts = state.get("expanded_contexts") or state.get("retrieved_children", [])
-    context_str = "\n\n---\n\n".join(contexts) if contexts else "(No relevant documents found)"
+    context_str = "\n\n---\n\n".join(c["text"] if isinstance(c, dict) else c for c in contexts) if contexts else "(No relevant documents found)"
     logger.info("Generating answer from %d context chunks", len(contexts))
 
     llm = get_llm()
@@ -145,6 +160,26 @@ def generate_answer(state: CRAGState) -> dict:
         ]
     )
     return {"answer": response.content.strip()}
+
+
+# ── run_judge ─────────────────────────────────────────────────────────────────
+
+
+def run_judge(state: CRAGState) -> dict:
+    """Run the LLM-as-judge evaluator and store the structured verdict."""
+    from app.rag.evaluators.llm_judge_evaluator import judge
+
+    query = _active_query(state)
+    answer = state.get("answer", "")
+    contexts = state.get("expanded_contexts") or state.get("retrieved_children", [])
+
+    verdict = judge(question=query, answer=answer, contexts=contexts)
+    logger.info(
+        "Judge overall=%.2f passed=%s",
+        verdict.overall_score,
+        verdict.passed,
+    )
+    return {"judge_verdict": verdict}
 
 
 # ── evaluate_grounding ────────────────────────────────────────────────────────

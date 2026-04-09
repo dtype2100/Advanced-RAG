@@ -1,9 +1,10 @@
 """Conditional edge functions for the CRAG graph.
 
-Each function reads the current ``CRAGState`` and returns a routing key
-that LangGraph uses to select the next node.  Keeping routing logic here
-(separate from node implementations) makes branching decisions explicit
-and independently testable.
+Each function reads the current ``CRAGState`` and returns a routing key that
+LangGraph uses to select the next node.
+
+Routing logic is delegated to ``rag/policies/routing_policy.py`` so that
+branching decisions can be tested independently of LangGraph graph construction.
 """
 
 from __future__ import annotations
@@ -12,80 +13,63 @@ import logging
 
 from app.core.config import settings
 from app.graphs.crag.state import CRAGState
+from app.rag.policies.routing_policy import (
+    route_after_clarification_check,
+    route_after_grounding,
+    route_after_judge,
+    route_after_retrieval,
+    route_after_rewrite_check,
+)
 
 logger = logging.getLogger(__name__)
 
 
 def route_after_analyze(state: CRAGState) -> str:
-    """Decide whether to ask for clarification or proceed to rewrite check.
-
-    Returns:
-        ``"ask_clarification"`` if the analyzer flagged missing information.
-        ``"decide_rewrite"``    otherwise.
-    """
-    if state.get("needs_clarification"):
-        logger.info("Route → ask_clarification")
-        return "ask_clarification"
-    logger.info("Route → decide_rewrite")
-    return "decide_rewrite"
+    """Route after query analysis — clarification vs rewrite check."""
+    result = route_after_clarification_check(state)
+    logger.info("Route after analyze → %s", result)
+    return result
 
 
 def route_after_clarification(state: CRAGState) -> str:
-    """After clarification is surfaced, always proceed to rewrite check.
-
-    Returns:
-        ``"decide_rewrite"`` unconditionally.
-    """
+    """After clarification is surfaced, always proceed to rewrite check."""
     return "decide_rewrite"
 
 
 def route_after_rewrite_decision(state: CRAGState) -> str:
-    """Decide whether to rewrite the query or go straight to retrieval.
-
-    Returns:
-        ``"rewrite_query"``    if the rewrite policy flagged this query.
-        ``"hybrid_retrieve"``  otherwise.
-    """
-    if state.get("needs_rewrite"):
-        logger.info("Route → rewrite_query")
-        return "rewrite_query"
-    logger.info("Route → hybrid_retrieve")
-    return "hybrid_retrieve"
+    """Route after rewrite decision — rewrite vs direct retrieval."""
+    result = route_after_rewrite_check(state)
+    logger.info("Route after rewrite decision → %s", result)
+    return result
 
 
 def route_after_retrieve(state: CRAGState) -> str:
-    """Decide whether to expand retrieved child chunks to parent context.
-
-    Returns:
-        ``"expand_context"`` when the expansion policy recommends it.
-        ``"rerank_context"`` otherwise (skip expansion).
-    """
-    from app.rag.policies.expansion_policy import should_expand
-
-    if should_expand(state):
-        logger.info("Route → expand_context")
-        return "expand_context"
-    logger.info("Route → rerank_context")
-    return "rerank_context"
+    """Route after retrieval — context expansion vs reranking."""
+    result = route_after_retrieval(state)
+    logger.info("Route after retrieve → %s", result)
+    return result
 
 
-def route_after_grounding(state: CRAGState) -> str:
-    """Decide whether to retry generation or accept the current answer.
+def route_after_judge_eval(state: CRAGState) -> str:
+    """Route after judge evaluation — accept / retry / reject."""
+    result = route_after_judge(state)
+    logger.info(
+        "Route after judge → %s (attempt %d/%d)",
+        result,
+        state.get("hallucination_attempt", 0),
+        settings.max_retries,
+    )
+    return result
 
-    Returns:
-        ``"retry_with_policy"`` when grounding score is too low and retries
-        remain (up to ``settings.max_retries``).
-        ``"end"``               when the answer is acceptable or retries are
-        exhausted.
-    """
-    from app.rag.policies.retry_policy import should_retry
 
-    if should_retry(state):
-        logger.info(
-            "Route → retry_with_policy (attempt %d/%d)",
-            state.get("hallucination_attempt", 0),
-            settings.max_retries,
-        )
-        return "retry_with_policy"
-    logger.info("Route → end")
-    return "end"
+def route_after_grounding_eval(state: CRAGState) -> str:
+    """Route after grounding evaluation — retry or end."""
+    result = route_after_grounding(state)
+    logger.info(
+        "Route after grounding → %s (score=%.2f, attempt %d/%d)",
+        result,
+        state.get("grounding_score", 0.0),
+        state.get("hallucination_attempt", 0),
+        settings.max_retries,
+    )
+    return result

@@ -1,0 +1,41 @@
+judge:
+  system: >
+    You are an expert evaluator assessing the quality of a RAG-generated answer.
+    Score the answer on the following dimensions (each 0.0–1.0):
+
+    - correctness:   Is the answer factually accurate based on the context?
+    - faithfulness:  Does the answer stay within what the context supports (no hallucination)?
+    - completeness:  Does the answer address all parts of the question?
+    - conciseness:   Is the answer appropriately concise without omitting key info?
+
+    Return a JSON object with ONLY these keys:
+    {"correctness": <float>, "faithfulness": <float>, "completeness": <float>,
+     "conciseness": <float>, "reasoning": "<one sentence>"}
+
+  human: |
+    Question: {question}
+
+    Context:
+    {context}
+
+    Answer:
+    {answer}
+
+  rubric:
+    correctness:
+      description: Factual accuracy relative to the provided context.
+      scale: "0.0 = completely wrong, 1.0 = perfectly accurate"
+    faithfulness:
+      description: Absence of hallucination — all claims traceable to context.
+      scale: "0.0 = heavily hallucinated, 1.0 = fully grounded"
+    completeness:
+      description: Coverage of all aspects of the question.
+      scale: "0.0 = misses most aspects, 1.0 = fully complete"
+    conciseness:
+      description: Appropriate length without padding or omission.
+      scale: "0.0 = excessive or too terse, 1.0 = optimal length"
+
+  thresholds:
+    min_faithfulness: 0.5
+    min_overall: 0.6
+    faithfulness_weight: 2.0

@@ -29,9 +29,15 @@ def run() -> None:
             correct += int(match)
             total += 1
             status = "✓" if match else "✗"
-            logger.info("%s Query: %s | expected=%s predicted=%s", status, item["query"], expected, predicted)
+            logger.info(
+                "%s Query: %s | expected=%s predicted=%s",
+                status,
+                item["query"],
+                expected,
+                predicted,
+            )
 
-    print(f"\nAccuracy: {correct}/{total} = {correct/total:.0%}" if total else "No data")
+    print(f"\nAccuracy: {correct}/{total} = {correct / total:.0%}" if total else "No data")
 
 
 if __name__ == "__main__":

@@ -15,9 +15,12 @@ def test_health(client):
     assert resp.status_code == 200
     data = resp.json()
     assert data["status"] == "ok"
-    assert data["qdrant"] == "connected"
-    assert "llm_backend" in data
+    assert data["vectorstore"] == "connected"
+    assert "llm_provider" in data
     assert "llm_model" in data
+    assert "embedding_provider" in data
+    assert "reranker_provider" in data
+    assert "vectorstore_provider" in data
 
 
 def test_ingest_and_search(client):

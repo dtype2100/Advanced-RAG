@@ -1,7 +1,7 @@
 [project]
 name = "advanced-rag"
-version = "0.1.0"
-description = "Advanced RAG system with FastAPI, LangGraph, and Qdrant"
+version = "0.2.0"
+description = "Advanced RAG system with pluggable LLM, Embedding, Reranker, and VectorStore providers"
 requires-python = ">=3.11"
 dependencies = [
     "fastapi>=0.115.0",
@@ -17,6 +17,17 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+anthropic = ["langchain-anthropic>=0.3.0"]
+chroma = ["chromadb>=0.5.0"]
+huggingface = ["sentence-transformers>=3.0.0"]
+reranker-flashrank = ["flashrank>=0.2.0"]
+reranker-crossencoder = ["sentence-transformers>=3.0.0"]
+all = [
+    "langchain-anthropic>=0.3.0",
+    "chromadb>=0.5.0",
+    "sentence-transformers>=3.0.0",
+    "flashrank>=0.2.0",
+]
 dev = [
     "pytest>=8.3.0",
     "pytest-asyncio>=0.24.0",

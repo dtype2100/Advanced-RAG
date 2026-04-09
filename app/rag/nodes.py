@@ -5,9 +5,11 @@ from __future__ import annotations
 import logging
 
 from langchain_core.messages import HumanMessage, SystemMessage
-from langchain_openai import ChatOpenAI
 
 from app.config import settings
+from app.core.llm import get_llm
+from app.core.reranker import get_reranker
+from app.core.vectorstore import get_vectorstore
 from app.rag.prompts import (
     GENERATE_HUMAN,
     GENERATE_SYSTEM,
@@ -17,38 +19,29 @@ from app.rag.prompts import (
     REWRITE_SYSTEM,
 )
 from app.rag.state import RAGState
-from app.vectorstore.store import search
 
 logger = logging.getLogger(__name__)
-
-
-def _get_llm() -> ChatOpenAI:
-    """Create LLM instance based on configured backend (OpenAI or vLLM)."""
-    if settings.using_vllm:
-        return ChatOpenAI(
-            model=settings.llm_model,
-            temperature=settings.llm_temperature,
-            openai_api_key="EMPTY",
-            openai_api_base=settings.vllm_base_url,
-        )
-    return ChatOpenAI(
-        model=settings.llm_model,
-        temperature=settings.llm_temperature,
-        api_key=settings.openai_api_key,
-    )
 
 
 # ── Node: Retrieve ──────────────────────────────────────────────────────────
 
 
 def retrieve(state: RAGState) -> RAGState:
-    """Retrieve documents from Qdrant for the current question."""
+    """Retrieve documents from the vectorstore, optionally reranked."""
     query = state.get("rewritten_question") or state["question"]
     logger.info("Retrieving documents for: %s", query)
 
-    results = search(query, top_k=settings.max_retrieval_docs)
+    store = get_vectorstore()
+    results = store.search(query, top_k=settings.max_retrieval_docs)
     documents = [r["text"] for r in results]
     scores = [r["score"] for r in results]
+
+    reranker = get_reranker()
+    if reranker and documents:
+        reranked = reranker.rerank(query, documents, top_k=settings.reranker_top_k)
+        documents = [r.text for r in reranked]
+        scores = [r.score for r in reranked]
+        logger.info("Reranked to %d documents", len(documents))
 
     return {**state, "documents": documents, "scores": scores}
 
@@ -65,7 +58,7 @@ def grade_documents(state: RAGState) -> RAGState:
         logger.warning("No documents to grade")
         return {**state, "is_relevant": False, "documents": []}
 
-    llm = _get_llm()
+    llm = get_llm()
     relevant_docs: list[str] = []
 
     for doc in documents:
@@ -94,7 +87,7 @@ def rewrite_query(state: RAGState) -> RAGState:
     retries = state.get("retries", 0) + 1
     logger.info("Rewriting query (retry %d): %s", retries, question)
 
-    llm = _get_llm()
+    llm = get_llm()
     response = llm.invoke(
         [
             SystemMessage(content=REWRITE_SYSTEM),
@@ -118,7 +111,7 @@ def generate(state: RAGState) -> RAGState:
     context = "\n\n---\n\n".join(documents) if documents else "(No relevant documents found)"
     logger.info("Generating answer from %d documents", len(documents))
 
-    llm = _get_llm()
+    llm = get_llm()
     response = llm.invoke(
         [
             SystemMessage(content=GENERATE_SYSTEM),

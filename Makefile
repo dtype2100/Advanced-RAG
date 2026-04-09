@@ -1,7 +1,10 @@
-.PHONY: install dev lint format test run vllm-serve clean
+.PHONY: install install-all dev lint format test run vllm-serve clean
 
 install:
 	pip install -e .
+
+install-all:
+	pip install -e ".[all]"
 
 dev:
 	pip install -e ".[dev]"

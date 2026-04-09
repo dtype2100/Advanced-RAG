@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from app.vectorstore.store import add_documents, search
+from app.providers.vectorstore import add_documents, search
 
 
 def test_add_and_search():

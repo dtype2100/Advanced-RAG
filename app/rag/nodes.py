@@ -5,9 +5,11 @@ from __future__ import annotations
 import logging
 
 from langchain_core.messages import HumanMessage, SystemMessage
-from langchain_openai import ChatOpenAI
 
 from app.config import settings
+from app.providers.llm import get_llm
+from app.providers.reranker import rerank
+from app.providers.vectorstore import search
 from app.rag.prompts import (
     GENERATE_HUMAN,
     GENERATE_SYSTEM,
@@ -17,32 +19,18 @@ from app.rag.prompts import (
     REWRITE_SYSTEM,
 )
 from app.rag.state import RAGState
-from app.vectorstore.store import search
 
 logger = logging.getLogger(__name__)
 
 
-def _get_llm() -> ChatOpenAI:
-    """Create LLM instance based on configured backend (OpenAI or vLLM)."""
-    if settings.using_vllm:
-        return ChatOpenAI(
-            model=settings.llm_model,
-            temperature=settings.llm_temperature,
-            openai_api_key="EMPTY",
-            openai_api_base=settings.vllm_base_url,
-        )
-    return ChatOpenAI(
-        model=settings.llm_model,
-        temperature=settings.llm_temperature,
-        api_key=settings.openai_api_key,
-    )
-
-
-# ── Node: Retrieve ──────────────────────────────────────────────────────────
+# ── Node: Retrieve ────────────────────────────────────────────────────────────
 
 
 def retrieve(state: RAGState) -> RAGState:
-    """Retrieve documents from Qdrant for the current question."""
+    """Retrieve documents from the configured vector store for the current question.
+
+    Uses the rewritten question if available, otherwise the original question.
+    """
     query = state.get("rewritten_question") or state["question"]
     logger.info("Retrieving documents for: %s", query)
 
@@ -53,7 +41,37 @@ def retrieve(state: RAGState) -> RAGState:
     return {**state, "documents": documents, "scores": scores}
 
 
-# ── Node: Grade Documents ───────────────────────────────────────────────────
+# ── Node: Rerank ──────────────────────────────────────────────────────────────
+
+
+def rerank_documents(state: RAGState) -> RAGState:
+    """Rerank retrieved documents using the configured reranker.
+
+    When RERANKER_PROVIDER is 'none' this is a no-op (pass-through).
+    """
+    if not settings.using_reranker:
+        return state
+
+    query = state.get("rewritten_question") or state["question"]
+    documents = state.get("documents", [])
+    scores = state.get("scores", [])
+
+    if not documents:
+        return state
+
+    reranked = rerank(query, documents, top_k=len(documents))
+
+    # Preserve original scores indexed by text for metadata continuity.
+    score_map = dict(zip(documents, scores, strict=True))
+    reranked_scores = [score_map.get(doc, 0.0) for doc in reranked]
+
+    logger.info(
+        "Reranked %d documents via provider='%s'", len(reranked), settings.reranker_provider
+    )
+    return {**state, "documents": reranked, "scores": reranked_scores}
+
+
+# ── Node: Grade Documents ─────────────────────────────────────────────────────
 
 
 def grade_documents(state: RAGState) -> RAGState:
@@ -65,7 +83,7 @@ def grade_documents(state: RAGState) -> RAGState:
         logger.warning("No documents to grade")
         return {**state, "is_relevant": False, "documents": []}
 
-    llm = _get_llm()
+    llm = get_llm()
     relevant_docs: list[str] = []
 
     for doc in documents:
@@ -85,7 +103,7 @@ def grade_documents(state: RAGState) -> RAGState:
     return {**state, "documents": relevant_docs, "is_relevant": is_relevant}
 
 
-# ── Node: Rewrite Query ─────────────────────────────────────────────────────
+# ── Node: Rewrite Query ───────────────────────────────────────────────────────
 
 
 def rewrite_query(state: RAGState) -> RAGState:
@@ -94,7 +112,7 @@ def rewrite_query(state: RAGState) -> RAGState:
     retries = state.get("retries", 0) + 1
     logger.info("Rewriting query (retry %d): %s", retries, question)
 
-    llm = _get_llm()
+    llm = get_llm()
     response = llm.invoke(
         [
             SystemMessage(content=REWRITE_SYSTEM),
@@ -107,18 +125,18 @@ def rewrite_query(state: RAGState) -> RAGState:
     return {**state, "rewritten_question": rewritten, "retries": retries}
 
 
-# ── Node: Generate Answer ───────────────────────────────────────────────────
+# ── Node: Generate Answer ─────────────────────────────────────────────────────
 
 
 def generate(state: RAGState) -> RAGState:
-    """Generate an answer from the relevant documents."""
+    """Generate an answer from the relevant documents using the configured LLM."""
     question = state.get("rewritten_question") or state["question"]
     documents = state.get("documents", [])
 
     context = "\n\n---\n\n".join(documents) if documents else "(No relevant documents found)"
     logger.info("Generating answer from %d documents", len(documents))
 
-    llm = _get_llm()
+    llm = get_llm()
     response = llm.invoke(
         [
             SystemMessage(content=GENERATE_SYSTEM),
@@ -128,7 +146,7 @@ def generate(state: RAGState) -> RAGState:
     return {**state, "generation": response.content.strip()}
 
 
-# ── Routing Logic ────────────────────────────────────────────────────────────
+# ── Routing Logic ─────────────────────────────────────────────────────────────
 
 
 def should_retry(state: RAGState) -> str:

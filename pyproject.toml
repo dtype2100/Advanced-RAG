@@ -1,7 +1,7 @@
 [project]
 name = "advanced-rag"
-version = "0.1.0"
-description = "Advanced RAG system with FastAPI, LangGraph, and Qdrant"
+version = "0.2.0"
+description = "Advanced RAG system with FastAPI, LangGraph, and pluggable providers"
 requires-python = ">=3.11"
 dependencies = [
     "fastapi>=0.115.0",
@@ -17,12 +17,42 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# ── LLM backends ─────────────────────────────────────────────────────────────
+anthropic = [
+    "langchain-anthropic>=0.3.0",
+]
+
+# ── Embedding providers ───────────────────────────────────────────────────────
+# openai embedding uses langchain-openai already in core deps
+
+# ── Reranker providers ────────────────────────────────────────────────────────
+cross-encoder = [
+    "sentence-transformers>=3.0.0",
+]
+cohere = [
+    "cohere>=5.0.0",
+]
+
+# ── Vector store backends ─────────────────────────────────────────────────────
+chroma = [
+    "chromadb>=0.6.0",
+]
+
+# ── Dev / test ────────────────────────────────────────────────────────────────
 dev = [
     "pytest>=8.3.0",
     "pytest-asyncio>=0.24.0",
     "httpx>=0.27.0",
     "ruff>=0.8.0",
     "mypy>=1.13.0",
+]
+
+# ── Convenience: all optional providers ──────────────────────────────────────
+all-providers = [
+    "langchain-anthropic>=0.3.0",
+    "sentence-transformers>=3.0.0",
+    "cohere>=5.0.0",
+    "chromadb>=0.6.0",
 ]
 
 [build-system]

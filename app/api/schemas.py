@@ -2,7 +2,7 @@
 
 from pydantic import BaseModel, Field
 
-# ── Documents ────────────────────────────────────────────────────────────────
+# ── Documents ─────────────────────────────────────────────────────────────────
 
 
 class DocumentInput(BaseModel):
@@ -19,7 +19,7 @@ class IngestResponse(BaseModel):
     count: int
 
 
-# ── Query ────────────────────────────────────────────────────────────────────
+# ── Query ──────────────────────────────────────────────────────────────────────
 
 
 class QueryRequest(BaseModel):
@@ -34,7 +34,7 @@ class QueryResponse(BaseModel):
     retries: int
 
 
-# ── Search ───────────────────────────────────────────────────────────────────
+# ── Search ─────────────────────────────────────────────────────────────────────
 
 
 class SearchRequest(BaseModel):
@@ -52,12 +52,16 @@ class SearchResponse(BaseModel):
     results: list[SearchResult]
 
 
-# ── Health ───────────────────────────────────────────────────────────────────
+# ── Health ─────────────────────────────────────────────────────────────────────
 
 
 class HealthResponse(BaseModel):
     status: str
     llm_backend: str
     llm_model: str
-    qdrant: str
+    embedding_provider: str
+    embedding_model: str
+    reranker_provider: str
+    vectorstore_backend: str
+    vectorstore: str
     collection: str

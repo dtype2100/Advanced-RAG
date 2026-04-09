@@ -59,5 +59,7 @@ class HealthResponse(BaseModel):
     status: str
     llm_backend: str
     llm_model: str
+    vector_db_backend: str
+    vector_db: str
     qdrant: str
     collection: str

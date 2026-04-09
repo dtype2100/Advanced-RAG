@@ -16,6 +16,8 @@ def test_health(client):
     data = resp.json()
     assert data["status"] == "ok"
     assert data["qdrant"] == "connected"
+    assert data["vector_db_backend"] in ("qdrant", "memory")
+    assert data["vector_db"] == "connected"
     assert "llm_backend" in data
     assert "llm_model" in data
 

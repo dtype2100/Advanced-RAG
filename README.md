@@ -18,6 +18,7 @@ Question → Retrieve (Qdrant) → Grade Documents (LLM) →┐
 - LangGraph `StateGraph` with conditional edges for the RAG loop
 - FastAPI REST API with Swagger docs at `/docs`
 - Dual LLM backend: vLLM (local) or OpenAI (remote)
+- Environment-driven provider switching for embedding/reranker/LLM/vector DB
 
 ## Quick Start
 
@@ -95,6 +96,24 @@ LLM_MODEL=gpt-4o-mini
 OPENAI_API_KEY=sk-your-key
 ```
 
+## Component Switching via Environment Variables
+
+```env
+# Embedding
+EMBEDDING_BACKEND=fastembed
+EMBEDDING_MODEL=BAAI/bge-small-en-v1.5
+
+# Reranker
+RERANKER_BACKEND=llm   # llm | none
+RERANKER_MODEL=        # empty => fallback to LLM_MODEL
+
+# Vector DB
+VECTOR_DB_BACKEND=qdrant   # qdrant | memory
+VECTOR_DB_COLLECTION_NAME=advanced_rag
+QDRANT_URL=                # empty => qdrant in-memory
+QDRANT_API_KEY=
+```
+
 ## Development
 
 ```bash
@@ -111,21 +130,33 @@ make vllm-serve  # Start vLLM on port 8001
 ```
 app/
 ├── main.py              # FastAPI app with lifespan
-├── config.py            # Pydantic settings (vLLM/OpenAI dual backend)
+├── config.py            # Environment settings for all pluggable providers
 ├── api/
 │   ├── routes.py        # API endpoint handlers
 │   └── schemas.py       # Request/response models
+├── llm/
+│   └── provider.py      # LLM provider factory (vLLM/OpenAI)
+├── embeddings/
+│   └── provider.py      # Embedding provider factory
+├── reranker/
+│   └── provider.py      # Reranker provider factory
 ├── rag/
 │   ├── graph.py         # LangGraph StateGraph (self-corrective RAG)
 │   ├── nodes.py         # Graph nodes (retrieve, grade, rewrite, generate)
 │   ├── prompts.py       # LLM prompt templates
 │   └── state.py         # RAGState TypedDict
 └── vectorstore/
-    └── store.py         # Qdrant wrapper with FastEmbed
+    ├── store.py         # Vector store facade
+    └── backends/
+        ├── base.py      # Vector backend protocol
+        ├── factory.py   # Backend selector from env
+        ├── qdrant.py    # Qdrant backend implementation
+        └── memory.py    # In-process memory backend
 models/                  # HuggingFace models (gitignored)
 tests/
 ├── test_api.py          # API endpoint tests
-└── test_vectorstore.py  # Vector store unit tests
+├── test_vectorstore.py  # Vector store unit tests
+└── test_configurable_components.py  # Env-driven switching tests
 ```
 
 ## Configuration Reference
@@ -138,8 +169,13 @@ tests/
 | `VLLM_MODEL_PATH` | `/workspace/models/Qwen2.5-0.5B-Instruct` | Local model path |
 | `VLLM_MAX_MODEL_LEN` | `2048` | Max context length |
 | `OPENAI_API_KEY` | (empty) | Required if LLM_BACKEND=openai |
+| `EMBEDDING_BACKEND` | `fastembed` | Embedding provider backend |
 | `EMBEDDING_MODEL` | `BAAI/bge-small-en-v1.5` | FastEmbed model |
+| `RERANKER_BACKEND` | `llm` | `llm` or `none` |
+| `RERANKER_MODEL` | (empty) | Reranker model (fallback: LLM_MODEL) |
+| `VECTOR_DB_BACKEND` | `qdrant` | `qdrant` or `memory` |
+| `VECTOR_DB_COLLECTION_NAME` | `advanced_rag` | Collection name for vector backend |
 | `QDRANT_URL` | (empty = in-memory) | Qdrant server URL |
-| `COLLECTION_NAME` | `advanced_rag` | Qdrant collection name |
+| `COLLECTION_NAME` | `advanced_rag` | Legacy alias of VECTOR_DB_COLLECTION_NAME |
 | `MAX_RETRIEVAL_DOCS` | `5` | Top-K retrieval count |
 | `MAX_RETRIES` | `3` | Max query rewrite retries |

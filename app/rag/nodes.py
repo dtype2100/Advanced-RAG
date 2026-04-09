@@ -5,37 +5,20 @@ from __future__ import annotations
 import logging
 
 from langchain_core.messages import HumanMessage, SystemMessage
-from langchain_openai import ChatOpenAI
 
 from app.config import settings
+from app.llm.provider import get_chat_model, message_content_to_text
 from app.rag.prompts import (
     GENERATE_HUMAN,
     GENERATE_SYSTEM,
-    GRADER_HUMAN,
-    GRADER_SYSTEM,
     REWRITE_HUMAN,
     REWRITE_SYSTEM,
 )
 from app.rag.state import RAGState
+from app.reranker.provider import get_reranker
 from app.vectorstore.store import search
 
 logger = logging.getLogger(__name__)
-
-
-def _get_llm() -> ChatOpenAI:
-    """Create LLM instance based on configured backend (OpenAI or vLLM)."""
-    if settings.using_vllm:
-        return ChatOpenAI(
-            model=settings.llm_model,
-            temperature=settings.llm_temperature,
-            openai_api_key="EMPTY",
-            openai_api_base=settings.vllm_base_url,
-        )
-    return ChatOpenAI(
-        model=settings.llm_model,
-        temperature=settings.llm_temperature,
-        api_key=settings.openai_api_key,
-    )
 
 
 # ── Node: Retrieve ──────────────────────────────────────────────────────────
@@ -57,7 +40,7 @@ def retrieve(state: RAGState) -> RAGState:
 
 
 def grade_documents(state: RAGState) -> RAGState:
-    """Grade each retrieved document for relevance, keeping only relevant ones."""
+    """Rerank retrieved documents and keep only relevant context."""
     question = state.get("rewritten_question") or state["question"]
     documents = state.get("documents", [])
 
@@ -65,22 +48,16 @@ def grade_documents(state: RAGState) -> RAGState:
         logger.warning("No documents to grade")
         return {**state, "is_relevant": False, "documents": []}
 
-    llm = _get_llm()
-    relevant_docs: list[str] = []
-
-    for doc in documents:
-        response = llm.invoke(
-            [
-                SystemMessage(content=GRADER_SYSTEM),
-                HumanMessage(content=GRADER_HUMAN.format(question=question, document=doc)),
-            ]
-        )
-        verdict = response.content.strip().lower()
-        if "relevant" in verdict and "irrelevant" not in verdict:
-            relevant_docs.append(doc)
+    reranker = get_reranker()
+    relevant_docs = reranker.filter_relevant(question=question, documents=documents)
 
     is_relevant = len(relevant_docs) > 0
-    logger.info("Grading: %d/%d documents relevant", len(relevant_docs), len(documents))
+    logger.info(
+        "Reranking(backend=%s): %d/%d documents relevant",
+        settings.reranker_backend,
+        len(relevant_docs),
+        len(documents),
+    )
 
     return {**state, "documents": relevant_docs, "is_relevant": is_relevant}
 
@@ -94,14 +71,14 @@ def rewrite_query(state: RAGState) -> RAGState:
     retries = state.get("retries", 0) + 1
     logger.info("Rewriting query (retry %d): %s", retries, question)
 
-    llm = _get_llm()
+    llm = get_chat_model()
     response = llm.invoke(
         [
             SystemMessage(content=REWRITE_SYSTEM),
             HumanMessage(content=REWRITE_HUMAN.format(question=question)),
         ]
     )
-    rewritten = response.content.strip()
+    rewritten = message_content_to_text(response.content)
     logger.info("Rewritten to: %s", rewritten)
 
     return {**state, "rewritten_question": rewritten, "retries": retries}
@@ -118,14 +95,14 @@ def generate(state: RAGState) -> RAGState:
     context = "\n\n---\n\n".join(documents) if documents else "(No relevant documents found)"
     logger.info("Generating answer from %d documents", len(documents))
 
-    llm = _get_llm()
+    llm = get_chat_model()
     response = llm.invoke(
         [
             SystemMessage(content=GENERATE_SYSTEM),
             HumanMessage(content=GENERATE_HUMAN.format(context=context, question=question)),
         ]
     )
-    return {**state, "generation": response.content.strip()}
+    return {**state, "generation": message_content_to_text(response.content)}
 
 
 # ── Routing Logic ────────────────────────────────────────────────────────────

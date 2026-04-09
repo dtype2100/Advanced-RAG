@@ -29,22 +29,17 @@ router = APIRouter()
 
 @router.get("/health", response_model=HealthResponse, tags=["system"])
 async def health():
-    """Health check including Qdrant connection status."""
-    try:
-        client = store.get_client()
-        collections = [c.name for c in client.get_collections().collections]
-        qdrant_status = "connected"
-        collection_status = "exists" if settings.collection_name in collections else "not_created"
-    except Exception as e:
-        qdrant_status = f"error: {e}"
-        collection_status = "unknown"
+    """Health check including vector DB and collection status."""
+    vector_db = store.healthcheck()
 
     return HealthResponse(
         status="ok",
         llm_backend=settings.llm_backend,
         llm_model=settings.llm_model,
-        qdrant=qdrant_status,
-        collection=collection_status,
+        vector_db_backend=vector_db["backend"],
+        vector_db=vector_db["status"],
+        qdrant=vector_db["status"],
+        collection=vector_db["collection"],
     )
 
 

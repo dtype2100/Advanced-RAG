@@ -79,7 +79,11 @@ class QdrantVectorStoreBackend:
             for text, vector, metadata in zip(texts, vectors, merged_metadatas, strict=True)
         ]
         client.upsert(collection_name=settings.vector_db_collection_name, points=points)
-        logger.info("Upserted %d documents into '%s'", len(points), settings.vector_db_collection_name)
+        logger.info(
+            "Upserted %d documents into '%s'",
+            len(points),
+            settings.vector_db_collection_name,
+        )
         return len(points)
 
     def search(self, query: str, top_k: int) -> list[dict[str, Any]]:

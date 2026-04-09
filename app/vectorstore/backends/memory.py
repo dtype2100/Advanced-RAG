@@ -64,9 +64,7 @@ class MemoryVectorStoreBackend:
     def healthcheck(self) -> dict[str, str]:
         """Return memory backend health and collection status."""
         collection_status = (
-            "exists"
-            if settings.vector_db_collection_name in self._collections
-            else "not_created"
+            "exists" if settings.vector_db_collection_name in self._collections else "not_created"
         )
         return {"status": "connected", "collection": collection_status}
 

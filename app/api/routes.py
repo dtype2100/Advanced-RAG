@@ -17,7 +17,8 @@ from app.api.schemas import (
     SearchResult,
 )
 from app.config import settings
-from app.vectorstore import store
+from app.core.vectorstore import get_vectorstore
+from app.services import retrieval
 
 logger = logging.getLogger(__name__)
 
@@ -29,21 +30,32 @@ router = APIRouter()
 
 @router.get("/health", response_model=HealthResponse, tags=["system"])
 async def health():
-    """Health check including Qdrant connection status."""
+    """Health check including vector store connection status."""
     try:
+        store = get_vectorstore()
         client = store.get_client()
-        collections = [c.name for c in client.get_collections().collections]
-        qdrant_status = "connected"
-        collection_status = "exists" if settings.collection_name in collections else "not_created"
+        if settings.vectorstore_provider == "qdrant":
+            collections = [c.name for c in client.get_collections().collections]
+            vs_status = "connected"
+            collection_status = (
+                "exists" if settings.collection_name in collections else "not_created"
+            )
+        else:
+            vs_status = "connected"
+            collection_status = "exists"
     except Exception as e:
-        qdrant_status = f"error: {e}"
+        vs_status = f"error: {e}"
         collection_status = "unknown"
 
     return HealthResponse(
         status="ok",
         llm_backend=settings.llm_backend,
         llm_model=settings.llm_model,
-        qdrant=qdrant_status,
+        embedding_provider=settings.embedding_provider,
+        embedding_model=settings.embedding_model,
+        vectorstore_provider=settings.vectorstore_provider,
+        reranker_provider=settings.reranker_provider,
+        vectorstore=vs_status,
         collection=collection_status,
     )
 
@@ -53,12 +65,12 @@ async def health():
 
 @router.post("/documents", response_model=IngestResponse, tags=["documents"])
 async def ingest_documents(req: IngestRequest):
-    """Ingest documents into the Qdrant vector store."""
+    """Ingest documents into the vector store."""
     texts = [d.text for d in req.documents]
     metadatas = [d.metadata for d in req.documents]
 
     try:
-        count = store.add_documents(texts, metadatas)
+        count = retrieval.add_documents(texts, metadatas)
     except Exception as e:
         logger.exception("Document ingestion failed")
         raise HTTPException(status_code=500, detail=str(e)) from e
@@ -73,7 +85,7 @@ async def ingest_documents(req: IngestRequest):
 async def semantic_search(req: SearchRequest):
     """Perform semantic search without RAG generation."""
     try:
-        results = store.search(req.query, top_k=req.top_k)
+        results = retrieval.search(req.query, top_k=req.top_k)
     except Exception as e:
         logger.exception("Search failed")
         raise HTTPException(status_code=500, detail=str(e)) from e
@@ -90,7 +102,7 @@ async def semantic_search(req: SearchRequest):
 
 @router.post("/query", response_model=QueryResponse, tags=["rag"])
 async def rag_query(req: QueryRequest):
-    """Run the full self-corrective RAG pipeline (retrieve → grade → rewrite → generate)."""
+    """Run the full self-corrective RAG pipeline (retrieve -> grade -> rewrite -> generate)."""
     if not settings.using_vllm and not settings.openai_api_key:
         raise HTTPException(
             status_code=503,

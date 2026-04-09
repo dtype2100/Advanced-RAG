@@ -1,23 +1,25 @@
 # Advanced-RAG
 
-Self-corrective RAG system built with **FastAPI**, **LangGraph**, **Qdrant**, and **vLLM**.
+Self-corrective RAG system built with **FastAPI**, **LangGraph**, and pluggable providers.
 
 ## Architecture
 
 ```
-Question → Retrieve (Qdrant) → Grade Documents (LLM) →┐
-                ↑                                       │
-                └── Rewrite Query (LLM) ←── irrelevant ─┘
+Question → Retrieve (VectorStore) → Grade Documents (LLM) →┐
+                ↑                                            │
+                └── Rewrite Query (LLM) ←── irrelevant ─────┘
                                              relevant ──→ Generate Answer (LLM) → Response
 ```
 
 **Key features:**
 - Self-corrective retrieval: automatically rewrites queries when documents are irrelevant
-- **vLLM**: local HuggingFace model serving via OpenAI-compatible API (CPU/GPU)
-- Qdrant vector store with FastEmbed (local embeddings, no API calls for embedding)
+- **Pluggable providers**: switch embedding, vector store, reranker, and LLM backends via environment variables
+- **vLLM** or **OpenAI** for LLM inference
+- **FastEmbed** or **OpenAI** for embeddings
+- **Qdrant** or **ChromaDB** for vector storage
+- **FlashRank** optional reranker for improved retrieval precision
 - LangGraph `StateGraph` with conditional edges for the RAG loop
 - FastAPI REST API with Swagger docs at `/docs`
-- Dual LLM backend: vLLM (local) or OpenAI (remote)
 
 ## Quick Start
 
@@ -25,6 +27,12 @@ Question → Retrieve (Qdrant) → Grade Documents (LLM) →┐
 
 ```bash
 pip install -e ".[dev]"
+
+# Optional providers:
+pip install -e ".[chroma]"         # ChromaDB support
+pip install -e ".[openai-embed]"   # OpenAI embeddings
+pip install -e ".[reranker]"       # FlashRank reranker
+pip install -e ".[all]"            # All optional providers
 ```
 
 ### 2. Download Model from HuggingFace
@@ -71,38 +79,51 @@ curl -X POST http://localhost:8000/api/v1/query \
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/` | Service info |
-| GET | `/api/v1/health` | Health check (Qdrant + LLM status) |
+| GET | `/api/v1/health` | Health check (all provider statuses) |
 | POST | `/api/v1/documents` | Ingest documents into vector store |
 | POST | `/api/v1/search` | Semantic search (no LLM required) |
 | POST | `/api/v1/query` | Full self-corrective RAG pipeline |
 
-## LLM Backend Configuration
+## Provider Configuration
 
-### vLLM (default, local)
+All providers are selected by a single environment variable each:
 
-```env
-LLM_BACKEND=vllm
-LLM_MODEL=Qwen/Qwen2.5-0.5B-Instruct
-VLLM_BASE_URL=http://localhost:8001/v1
-VLLM_MODEL_PATH=/workspace/models/Qwen2.5-0.5B-Instruct
-```
+### LLM Backend
 
-### OpenAI (remote)
+| `LLM_BACKEND` | Description |
+|----------------|-------------|
+| `vllm` (default) | Local vLLM server (OpenAI-compatible) |
+| `openai` | OpenAI API |
 
-```env
-LLM_BACKEND=openai
-LLM_MODEL=gpt-4o-mini
-OPENAI_API_KEY=sk-your-key
-```
+### Embedding Provider
+
+| `EMBEDDING_PROVIDER` | Description |
+|-----------------------|-------------|
+| `fastembed` (default) | Local FastEmbed models (no API key) |
+| `openai` | OpenAI Embedding API |
+
+### Vector Store Provider
+
+| `VECTORSTORE_PROVIDER` | Description |
+|-------------------------|-------------|
+| `qdrant` (default) | Qdrant (in-memory or remote) |
+| `chroma` | ChromaDB (in-memory or persistent) |
+
+### Reranker Provider
+
+| `RERANKER_PROVIDER` | Description |
+|----------------------|-------------|
+| `none` (default) | No reranking |
+| `flashrank` | FlashRank cross-encoder |
 
 ## Development
 
 ```bash
-make dev       # Install with dev tools
-make lint      # Run linter
-make format    # Auto-format
-make test      # Run tests
-make run       # Start FastAPI dev server
+make dev         # Install with dev tools
+make lint        # Run linter
+make format      # Auto-format
+make test        # Run tests
+make run         # Start FastAPI dev server
 make vllm-serve  # Start vLLM on port 8001
 ```
 
@@ -110,22 +131,41 @@ make vllm-serve  # Start vLLM on port 8001
 
 ```
 app/
-├── main.py              # FastAPI app with lifespan
-├── config.py            # Pydantic settings (vLLM/OpenAI dual backend)
+├── main.py                    # FastAPI app with lifespan
+├── config.py                  # Pydantic settings (all provider configs)
 ├── api/
-│   ├── routes.py        # API endpoint handlers
-│   └── schemas.py       # Request/response models
-├── rag/
-│   ├── graph.py         # LangGraph StateGraph (self-corrective RAG)
-│   ├── nodes.py         # Graph nodes (retrieve, grade, rewrite, generate)
-│   ├── prompts.py       # LLM prompt templates
-│   └── state.py         # RAGState TypedDict
-└── vectorstore/
-    └── store.py         # Qdrant wrapper with FastEmbed
-models/                  # HuggingFace models (gitignored)
+│   ├── routes.py              # API endpoint handlers
+│   └── schemas.py             # Request/response models
+├── core/
+│   ├── embedding/
+│   │   ├── base.py            # BaseEmbedding ABC
+│   │   ├── fastembed.py       # FastEmbed provider
+│   │   ├── openai.py          # OpenAI embedding provider
+│   │   └── factory.py         # Singleton factory
+│   ├── llm/
+│   │   └── factory.py         # LLM factory (vLLM / OpenAI)
+│   ├── reranker/
+│   │   ├── base.py            # BaseReranker ABC
+│   │   ├── noop.py            # No-op passthrough
+│   │   ├── flashrank.py       # FlashRank cross-encoder
+│   │   └── factory.py         # Singleton factory
+│   └── vectorstore/
+│       ├── base.py            # BaseVectorStore ABC
+│       ├── qdrant.py          # Qdrant provider
+│       ├── chroma.py          # ChromaDB provider
+│       └── factory.py         # Singleton factory
+├── services/
+│   └── retrieval.py           # Embed + search + rerank orchestration
+└── rag/
+    ├── graph.py               # LangGraph StateGraph (self-corrective RAG)
+    ├── nodes.py               # Graph nodes (retrieve, grade, rewrite, generate)
+    ├── prompts.py             # LLM prompt templates
+    └── state.py               # RAGState TypedDict
+models/                        # HuggingFace models (gitignored)
 tests/
-├── test_api.py          # API endpoint tests
-└── test_vectorstore.py  # Vector store unit tests
+├── conftest.py                # Test fixtures
+├── test_api.py                # API endpoint tests
+└── test_vectorstore.py        # Retrieval service tests
 ```
 
 ## Configuration Reference
@@ -134,12 +174,23 @@ tests/
 |----------|---------|-------------|
 | `LLM_BACKEND` | `vllm` | `vllm` or `openai` |
 | `LLM_MODEL` | `Qwen/Qwen2.5-0.5B-Instruct` | Model name |
+| `LLM_TEMPERATURE` | `0.0` | Sampling temperature |
 | `VLLM_BASE_URL` | `http://localhost:8001/v1` | vLLM server endpoint |
 | `VLLM_MODEL_PATH` | `/workspace/models/Qwen2.5-0.5B-Instruct` | Local model path |
 | `VLLM_MAX_MODEL_LEN` | `2048` | Max context length |
-| `OPENAI_API_KEY` | (empty) | Required if LLM_BACKEND=openai |
-| `EMBEDDING_MODEL` | `BAAI/bge-small-en-v1.5` | FastEmbed model |
+| `OPENAI_API_KEY` | (empty) | Required if using OpenAI LLM or embeddings |
+| `EMBEDDING_PROVIDER` | `fastembed` | `fastembed` or `openai` |
+| `EMBEDDING_MODEL` | `BAAI/bge-small-en-v1.5` | FastEmbed model name |
+| `OPENAI_EMBEDDING_MODEL` | `text-embedding-3-small` | OpenAI embedding model |
+| `VECTORSTORE_PROVIDER` | `qdrant` | `qdrant` or `chroma` |
 | `QDRANT_URL` | (empty = in-memory) | Qdrant server URL |
-| `COLLECTION_NAME` | `advanced_rag` | Qdrant collection name |
+| `QDRANT_API_KEY` | (empty) | Qdrant API key |
+| `CHROMA_HOST` | `localhost` | Chroma server host |
+| `CHROMA_PORT` | `8500` | Chroma server port |
+| `CHROMA_PERSIST_DIR` | (empty = in-memory) | Chroma persistence path |
+| `COLLECTION_NAME` | `advanced_rag` | Vector collection name |
+| `RERANKER_PROVIDER` | `none` | `none` or `flashrank` |
+| `RERANKER_MODEL` | `ms-marco-MiniLM-L-12-v2` | Reranker model |
+| `RERANKER_TOP_K` | `5` | Reranker top-K |
 | `MAX_RETRIEVAL_DOCS` | `5` | Top-K retrieval count |
 | `MAX_RETRIES` | `3` | Max query rewrite retries |

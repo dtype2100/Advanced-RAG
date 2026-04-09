@@ -1,7 +1,7 @@
 [project]
 name = "advanced-rag"
 version = "0.1.0"
-description = "Advanced RAG system with FastAPI, LangGraph, and Qdrant"
+description = "Advanced RAG system with FastAPI, LangGraph, and pluggable providers"
 requires-python = ">=3.11"
 dependencies = [
     "fastapi>=0.115.0",
@@ -17,6 +17,10 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+chroma = ["chromadb>=0.5.0"]
+openai-embed = ["openai>=1.40.0"]
+reranker = ["flashrank>=0.2.0"]
+all = ["advanced-rag[chroma,openai-embed,reranker]"]
 dev = [
     "pytest>=8.3.0",
     "pytest-asyncio>=0.24.0",

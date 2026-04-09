@@ -9,7 +9,7 @@ from fastapi import FastAPI
 
 from app.api.routes import router
 from app.config import settings
-from app.vectorstore.store import ensure_collection
+from app.services.retrieval import ensure_collection
 
 logging.basicConfig(
     level=logging.INFO,
@@ -22,11 +22,13 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     """Initialize resources on startup, clean up on shutdown."""
     logger.info("Starting Advanced RAG service")
-    qdrant_mode = "in-memory" if settings.qdrant_in_memory else settings.qdrant_url
-    logger.info("Qdrant mode: %s", qdrant_mode)
-    logger.info("Embedding model: %s", settings.embedding_model)
-    logger.info("LLM backend: %s", settings.llm_backend)
-    logger.info("LLM model: %s", settings.llm_model)
+    logger.info("LLM backend: %s (%s)", settings.llm_backend, settings.llm_model)
+    logger.info(
+        "Embedding provider: %s (%s)", settings.embedding_provider, settings.embedding_model
+    )
+    logger.info("Vector store: %s", settings.vectorstore_provider)
+    logger.info("Reranker: %s", settings.reranker_provider)
+
     if settings.using_vllm:
         logger.info("vLLM endpoint: %s", settings.vllm_base_url)
 

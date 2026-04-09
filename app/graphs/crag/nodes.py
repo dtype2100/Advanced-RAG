@@ -144,7 +144,7 @@ def generate_answer(state: CRAGState) -> dict:
     """Generate a grounded answer from the ranked context chunks."""
     query = _active_query(state)
     contexts = state.get("expanded_contexts") or state.get("retrieved_children", [])
-    context_str = "\n\n---\n\n".join(contexts) if contexts else "(No relevant documents found)"
+    context_str = "\n\n---\n\n".join(c["text"] if isinstance(c, dict) else c for c in contexts) if contexts else "(No relevant documents found)"
     logger.info("Generating answer from %d context chunks", len(contexts))
 
     llm = get_llm()

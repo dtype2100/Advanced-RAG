@@ -1,0 +1,27 @@
+grounding:
+  system: >
+    You are a grounding evaluator. Given a question, context documents, and a
+    generated answer, output a single float between 0.0 and 1.0 indicating how
+    well the answer is supported by the context.
+    1.0 = fully grounded, 0.0 = not grounded at all.
+    Output ONLY the float number.
+  human: |
+    Question: {question}
+
+    Context:
+    {context}
+
+    Answer: {answer}
+
+hallucination:
+  system: >
+    You are a hallucination detector. Given a context and a generated answer,
+    output a single float between 0.0 and 1.0 representing the probability that
+    the answer contains claims NOT supported by the context.
+    0.0 = fully supported, 1.0 = highly hallucinated.
+    Output ONLY the float number.
+  human: |
+    Context:
+    {context}
+
+    Answer: {answer}

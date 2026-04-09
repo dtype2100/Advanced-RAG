@@ -2,36 +2,36 @@
 
 from __future__ import annotations
 
-import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from app.api.routes import router
-from app.config import settings
-from app.vectorstore.store import ensure_collection
+from app.api.v1.chat import router as chat_router
+from app.api.v1.health import router as health_router
+from app.api.v1.ingest import router as ingest_router
+from app.core.config import settings
+from app.core.logging import configure_logging, get_logger
+from app.services.index_service import ensure_index
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
-)
-logger = logging.getLogger(__name__)
+configure_logging()
+logger = get_logger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Initialize resources on startup, clean up on shutdown."""
+    """Initialise resources on startup and clean up on shutdown."""
     logger.info("Starting Advanced RAG service")
-    qdrant_mode = "in-memory" if settings.qdrant_in_memory else settings.qdrant_url
-    logger.info("Qdrant mode: %s", qdrant_mode)
+    logger.info(
+        "Qdrant mode: %s",
+        "in-memory" if settings.qdrant_in_memory else settings.qdrant_url,
+    )
     logger.info("Embedding model: %s", settings.embedding_model)
-    logger.info("LLM backend: %s", settings.llm_backend)
-    logger.info("LLM model: %s", settings.llm_model)
+    logger.info("LLM backend: %s  model: %s", settings.llm_backend, settings.llm_model)
     if settings.using_vllm:
         logger.info("vLLM endpoint: %s", settings.vllm_base_url)
 
-    ensure_collection()
-    logger.info("Collection '%s' ready", settings.collection_name)
+    ensure_index()
+    logger.info("Vector index ready (collection: %s)", settings.collection_name)
 
     yield
 
@@ -40,18 +40,25 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Advanced RAG API",
-    description="Self-corrective RAG system powered by FastAPI, LangGraph, and Qdrant",
-    version="0.1.0",
+    description=(
+        "Agentic RAG system: conditional clarification, conditional rewrite, "
+        "parent/child + small-to-big retrieval, hallucination feedback loop (max 3×). "
+        "Powered by FastAPI, LangGraph, and Qdrant."
+    ),
+    version="0.2.0",
     lifespan=lifespan,
 )
 
-app.include_router(router, prefix="/api/v1")
+app.include_router(health_router, prefix="/api/v1")
+app.include_router(ingest_router, prefix="/api/v1")
+app.include_router(chat_router, prefix="/api/v1")
 
 
 @app.get("/")
 async def root():
+    """Root endpoint — basic service info."""
     return {
         "service": "Advanced RAG API",
-        "version": "0.1.0",
+        "version": "0.2.0",
         "docs": "/docs",
     }

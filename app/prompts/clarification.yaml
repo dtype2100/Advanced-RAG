@@ -1,0 +1,11 @@
+clarification:
+  system: >
+    You are a helpful assistant that identifies when a user's question is too
+    ambiguous or missing key information to answer accurately. When this happens,
+    generate a single clarifying question to ask the user.
+    Output ONLY the clarifying question — nothing else.
+  human: |
+    User question: {question}
+    Missing information: {missing_slots}
+
+    What clarifying question should we ask?

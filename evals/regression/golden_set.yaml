@@ -1,0 +1,17 @@
+golden_set:
+  - id: "rag_basic"
+    query: "What is retrieval augmented generation?"
+    expected_intent: "factual"
+    expected_clarification: false
+    expected_rewrite: false
+    min_grounding_score: 0.6
+
+  - id: "ambiguous_time"
+    query: "What happened when?"
+    expected_clarification: true
+    expected_slot: "time_period"
+
+  - id: "short_query_rewrite"
+    query: "AI"
+    expected_clarification: false
+    expected_rewrite: true

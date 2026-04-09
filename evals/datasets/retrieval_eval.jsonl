@@ -1,0 +1,2 @@
+{"query": "What is retrieval augmented generation?", "expected_sources": ["rag_intro"], "relevant_keywords": ["retrieval", "augmented", "generation", "LLM"]}
+{"query": "How does Qdrant store vectors?", "expected_sources": ["qdrant_docs"], "relevant_keywords": ["Qdrant", "vector", "cosine", "distance"]}

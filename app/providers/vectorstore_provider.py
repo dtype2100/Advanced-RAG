@@ -1,4 +1,7 @@
-"""Vector store provider — resolves the active ``VectorStorePort`` implementation.
+"""Vector store provider — singleton accessor for the active ``VectorStorePort``.
+
+Delegates instantiation to ``storage.vectorstores.factory`` so that the
+selection logic lives in one place.
 
 Change the ``VECTOR_BACKEND`` environment variable to swap implementations:
 - ``qdrant``   → ``QdrantStore``  (default)
@@ -8,7 +11,6 @@ Change the ``VECTOR_BACKEND`` environment variable to swap implementations:
 from __future__ import annotations
 
 import logging
-import os
 
 from app.storage.vectorstores.base import VectorStorePort
 
@@ -18,27 +20,15 @@ _store: VectorStorePort | None = None
 
 
 def get_vectorstore() -> VectorStorePort:
-    """Return the singleton vector store instance for the configured backend.
+    """Return the singleton vector store for the configured backend.
 
-    Reads the ``VECTOR_BACKEND`` env var (default: ``qdrant``).
+    Delegates to ``storage.vectorstores.factory.create_vectorstore()``.
     """
     global _store
     if _store is not None:
         return _store
 
-    backend = os.getenv("VECTOR_BACKEND", "qdrant").lower()
+    from app.storage.vectorstores.factory import create_vectorstore
 
-    if backend == "qdrant":
-        from app.storage.vectorstores.qdrant_store import QdrantStore
-
-        logger.info("Vector store provider: Qdrant")
-        _store = QdrantStore()
-    elif backend == "pgvector":
-        from app.storage.vectorstores.pgvector_store import PgVectorStore
-
-        logger.info("Vector store provider: pgvector")
-        _store = PgVectorStore()
-    else:
-        raise ValueError(f"Unknown VECTOR_BACKEND: '{backend}'. Choose 'qdrant' or 'pgvector'.")
-
+    _store = create_vectorstore()
     return _store

@@ -15,3 +15,17 @@ golden_set:
     query: "AI"
     expected_clarification: false
     expected_rewrite: true
+
+  - id: "judge_hallucination"
+    query: "What is the capital of France?"
+    context: "France is a country in Western Europe. Its capital is Paris."
+    answer_hallucinated: "The capital of France is Berlin."
+    expected_judge_faithfulness_max: 0.3
+    expected_judge_action: "retry_retrieval"
+
+  - id: "judge_good_answer"
+    query: "What is RAG?"
+    context: "RAG enhances LLM responses by retrieving relevant documents first."
+    answer_correct: "RAG retrieves relevant documents to augment LLM generation."
+    expected_judge_overall_min: 0.6
+    expected_judge_action: "accept"

@@ -24,10 +24,19 @@ def run() -> None:
             query = item["query"]
             results = retrieve(query, top_k=5)
             metrics = evaluate_retrieval(query, results)
-            logger.info("Query: %s | Coverage: %.2f | Avg score: %.4f", query, metrics["coverage_ratio"], metrics["avg_score"])
+            logger.info(
+                "Query: %s | Coverage: %.2f | Avg score: %.4f",
+                query,
+                metrics["coverage_ratio"],
+                metrics["avg_score"],
+            )
             results_summary.append({"query": query, **metrics})
 
-    avg_coverage = sum(r["coverage_ratio"] for r in results_summary) / len(results_summary) if results_summary else 0.0
+    avg_coverage = (
+        sum(r["coverage_ratio"] for r in results_summary) / len(results_summary)
+        if results_summary
+        else 0.0
+    )
     print(f"\nOverall average coverage: {avg_coverage:.2%}")
 
 

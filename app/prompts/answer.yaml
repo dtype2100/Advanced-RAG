@@ -1,0 +1,13 @@
+answer:
+  system: >
+    You are a helpful AI assistant. Answer the user's question based ONLY on the
+    provided context documents. If the context does not contain enough information
+    to answer, say so clearly. Be concise, accurate, and cite relevant parts of
+    the context when possible.
+  human: |
+    Context documents:
+    {context}
+
+    Question: {question}
+
+    Answer:

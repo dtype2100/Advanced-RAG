@@ -1,0 +1,3 @@
+{"query": "What happened when?", "expected_clarification": true, "expected_slot": "time_period"}
+{"query": "What is the capital of France?", "expected_clarification": false}
+{"query": "Where is the conference?", "expected_clarification": true, "expected_slot": "location"}

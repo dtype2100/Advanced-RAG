@@ -1,63 +1,24 @@
-"""Pydantic request / response schemas for the API."""
+"""Backward-compatibility re-exports for legacy code using app.api.schemas.
 
-from pydantic import BaseModel, Field
+New code should import directly from app.schemas.*.
+"""
 
-# ── Documents ────────────────────────────────────────────────────────────────
+from __future__ import annotations
 
+from app.schemas.document import DocumentInput, IngestRequest, IngestResponse
+from app.schemas.request import ChatRequest as QueryRequest
+from app.schemas.request import SearchRequest
+from app.schemas.response import ChatResponse as QueryResponse
+from app.schemas.response import HealthResponse, SearchResponse, SearchResult
 
-class DocumentInput(BaseModel):
-    text: str = Field(..., min_length=1, description="Document text to ingest")
-    metadata: dict[str, str] = Field(default_factory=dict, description="Optional metadata")
-
-
-class IngestRequest(BaseModel):
-    documents: list[DocumentInput] = Field(..., min_length=1)
-
-
-class IngestResponse(BaseModel):
-    message: str
-    count: int
-
-
-# ── Query ────────────────────────────────────────────────────────────────────
-
-
-class QueryRequest(BaseModel):
-    question: str = Field(..., min_length=1, description="User question")
-    top_k: int = Field(default=5, ge=1, le=20, description="Number of documents to retrieve")
-
-
-class QueryResponse(BaseModel):
-    question: str
-    answer: str
-    sources: list[str]
-    retries: int
-
-
-# ── Search ───────────────────────────────────────────────────────────────────
-
-
-class SearchRequest(BaseModel):
-    query: str = Field(..., min_length=1)
-    top_k: int = Field(default=5, ge=1, le=20)
-
-
-class SearchResult(BaseModel):
-    text: str
-    score: float
-    metadata: dict[str, str]
-
-
-class SearchResponse(BaseModel):
-    results: list[SearchResult]
-
-
-# ── Health ───────────────────────────────────────────────────────────────────
-
-
-class HealthResponse(BaseModel):
-    status: str
-    llm_backend: str
-    llm_model: str
-    qdrant: str
-    collection: str
+__all__ = [
+    "DocumentInput",
+    "IngestRequest",
+    "IngestResponse",
+    "QueryRequest",
+    "QueryResponse",
+    "SearchRequest",
+    "SearchResult",
+    "SearchResponse",
+    "HealthResponse",
+]

@@ -1,4 +1,4 @@
-.PHONY: install dev lint format test run vllm-serve clean
+.PHONY: install dev lint format test run vllm-serve evals clean
 
 install:
 	pip install -e .
@@ -7,15 +7,21 @@ dev:
 	pip install -e ".[dev]"
 
 lint:
-	ruff check app/ tests/
-	ruff format --check app/ tests/
+	ruff check app/ tests/ evals/ scripts/
+	ruff format --check app/ tests/ evals/ scripts/
 
 format:
-	ruff check --fix app/ tests/
-	ruff format app/ tests/
+	ruff check --fix app/ tests/ evals/ scripts/
+	ruff format app/ tests/ evals/ scripts/
 
 test:
 	pytest -v
+
+test-unit:
+	pytest -v tests/unit/
+
+test-integration:
+	pytest -v tests/integration/
 
 run:
 	uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
@@ -31,6 +37,9 @@ vllm-serve:
 		--port 8001 \
 		--max-model-len $(or $(VLLM_MAX_MODEL_LEN),2048) \
 		--dtype bfloat16
+
+evals:
+	python scripts/run_evals.py
 
 clean:
 	find . -type d -name __pycache__ -exec rm -rf {} +

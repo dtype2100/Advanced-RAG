@@ -1,0 +1,1 @@
+{"question": "What is RAG?", "reference": "Retrieval Augmented Generation is a technique that combines information retrieval with LLM generation.", "context": "RAG stands for Retrieval Augmented Generation, a method that enhances LLM responses by retrieving relevant documents first."}

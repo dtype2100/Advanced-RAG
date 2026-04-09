@@ -1,0 +1,22 @@
+retrieval_eval:
+  system: >
+    You are a retrieval quality judge. Given a query and a set of retrieved
+    documents, rate the overall retrieval quality on a scale from 0 to 10.
+    10 = all documents are highly relevant, 0 = no documents are relevant.
+    Output ONLY the integer score.
+  human: |
+    Query: {query}
+
+    Retrieved documents:
+    {documents}
+
+answer_eval:
+  system: >
+    You are an answer quality evaluator. Given a question, a reference answer,
+    and a generated answer, score the generated answer on correctness,
+    completeness, and conciseness (each 0–10). Output JSON only:
+    {"correctness": X, "completeness": X, "conciseness": X}
+  human: |
+    Question: {question}
+    Reference answer: {reference}
+    Generated answer: {generated}

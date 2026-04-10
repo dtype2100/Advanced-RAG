@@ -12,7 +12,10 @@ services:
     environment:
       - VECTOR_BACKEND=qdrant
       - QDRANT_URL=http://qdrant:6333
+      - REDIS_URL=redis://redis:6379
     depends_on:
+      redis:
+        condition: service_started
       qdrant:
         condition: service_healthy
     volumes:
@@ -31,6 +34,27 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    restart: unless-stopped
+
+
+  worker:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    env_file:
+      - .env
+    environment:
+      - VECTOR_BACKEND=qdrant
+      - QDRANT_URL=http://qdrant:6333
+      - REDIS_URL=redis://redis:6379
+    command: ["arq", "app.workers.settings.WorkerSettings"]
+    depends_on:
+      redis:
+        condition: service_started
+      qdrant:
+        condition: service_healthy
+    volumes:
+      - ./data:/app/data
     restart: unless-stopped
 
   redis:

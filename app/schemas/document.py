@@ -25,3 +25,21 @@ class IngestResponse(BaseModel):
 
     message: str
     count: int
+
+
+class IngestJobResponse(BaseModel):
+    """Accepted async ingest job — poll GET /jobs/{job_id} for status."""
+
+    job_id: str
+    status: str = Field(default="pending", description="Initial job state")
+    message: str = Field(default="Ingest job queued")
+
+
+class JobStatusResponse(BaseModel):
+    """Status of a background ARQ job."""
+
+    job_id: str
+    status: str
+    count: int | None = None
+    message: str | None = None
+    error: str | None = None

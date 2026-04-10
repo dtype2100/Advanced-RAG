@@ -1,4 +1,4 @@
-.PHONY: install dev lint format test run vllm-serve evals clean
+.PHONY: install dev lint format test run vllm-serve worker evals clean
 
 install:
 	pip install -e .
@@ -25,6 +25,9 @@ test-integration:
 
 run:
 	uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+
+worker:
+	arq app.workers.settings.WorkerSettings
 
 vllm-serve:
 	@echo "Starting vLLM server on port 8001..."

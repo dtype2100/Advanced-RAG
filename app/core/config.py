@@ -38,6 +38,11 @@ class Settings(BaseSettings):
     host: str = "0.0.0.0"
     port: int = 8000
 
+    # ── Queue (ARQ + Redis) ───────────────────────────────────────────────────
+    redis_url: str = ""
+    arq_queue_name: str = "arq:queue"
+    ingest_queue_async: bool = False
+
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8", "extra": "ignore"}
 
     @property

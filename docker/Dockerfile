@@ -5,6 +5,7 @@ WORKDIR /app
 COPY pyproject.toml .
 RUN pip install --no-cache-dir -e .
 
+COPY docker/ ./docker/
 COPY app/ ./app/
 
 EXPOSE 8000

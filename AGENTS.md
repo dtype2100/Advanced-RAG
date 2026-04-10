@@ -21,6 +21,9 @@
 - Optional: `INGEST_QUEUE_ASYNC=true` makes `POST /api/v1/documents` return 202 + job when `REDIS_URL` is set.
 - Docker Compose: start `redis`, `worker`, and `api` together; `api` and `worker` receive `REDIS_URL`.
 
+### LLM prompt/response logging (dev only)
+
+- Set `LOG_LLM_IO=true` to log full prompts and model outputs to logger `app.llm_io` (may contain PII; disable in production).
 
 1. Start vLLM first (`make vllm-serve`) — takes ~3-5 min on CPU to load model
 2. Then start FastAPI (`make run`)

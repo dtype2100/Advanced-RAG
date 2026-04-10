@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pydantic import Field
 from pydantic_settings import BaseSettings
 
 
@@ -42,6 +43,10 @@ class Settings(BaseSettings):
     redis_url: str = ""
     arq_queue_name: str = "arq:queue"
     ingest_queue_async: bool = False
+
+    # ── Observability ──────────────────────────────────────────────────────────
+    # When True, log full prompts and LLM outputs under logger ``app.llm_io`` (PII risk).
+    log_llm_io: bool = Field(default=False, validation_alias="LOG_LLM_IO")
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8", "extra": "ignore"}
 

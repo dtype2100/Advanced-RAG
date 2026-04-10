@@ -6,6 +6,7 @@ import logging
 
 from langchain_core.messages import HumanMessage, SystemMessage
 
+from app.core.llm_io_log import log_llm_io
 from app.providers.llm_provider import get_llm
 
 logger = logging.getLogger(__name__)
@@ -27,13 +28,16 @@ def rewrite(query: str) -> str:
     Returns:
         Rewritten query string.
     """
+    user_text = f"Original question: {query}\n\nRewrite this question:"
+    log_llm_io("query_rewrite", user_query=query, system=_SYSTEM, user=user_text)
     llm = get_llm()
     response = llm.invoke(
         [
             SystemMessage(content=_SYSTEM),
-            HumanMessage(content=f"Original question: {query}\n\nRewrite this question:"),
+            HumanMessage(content=user_text),
         ]
     )
     rewritten = response.content.strip()
+    log_llm_io("query_rewrite", assistant=rewritten)
     logger.info("Rewriter: '%s' → '%s'", query, rewritten)
     return rewritten

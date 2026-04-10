@@ -153,6 +153,7 @@ OPENAI_API_KEY=sk-your-key
 | `REDIS_URL` | (empty) | Redis for ARQ; required for async ingest |
 | `INGEST_QUEUE_ASYNC` | `false` | If `true` and `REDIS_URL` set, `POST /documents` returns 202 + job |
 | `ARQ_QUEUE_NAME` | `arq:queue` | Must match worker queue name |
+| `LOG_LLM_IO` | `false` | If `true`, log prompts/outputs under logger `app.llm_io` (sensitive) |
 
 Judge LLM (optional): `JUDGE_LLM_BACKEND`, `JUDGE_LLM_MODEL`, `JUDGE_VLLM_BASE_URL` — see `app/providers/judge_llm_provider.py`.
 

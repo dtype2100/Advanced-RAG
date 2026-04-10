@@ -9,6 +9,7 @@ import logging
 
 from langchain_core.messages import HumanMessage, SystemMessage
 
+from app.core.llm_io_log import log_llm_io
 from app.providers.llm_provider import get_llm
 
 logger = logging.getLogger(__name__)
@@ -37,17 +38,19 @@ def evaluate(answer: str, contexts: list[str], question: str = "") -> float:
         return 0.0
 
     context_str = "\n\n---\n\n".join(contexts[:5])
+    user_text = f"Question: {question}\n\nContext:\n{context_str}\n\nAnswer: {answer}"
+    log_llm_io("grounding_evaluator", system=_SYSTEM, user=user_text)
     try:
         llm = get_llm()
         response = llm.invoke(
             [
                 SystemMessage(content=_SYSTEM),
-                HumanMessage(
-                    content=(f"Question: {question}\n\nContext:\n{context_str}\n\nAnswer: {answer}")
-                ),
+                HumanMessage(content=user_text),
             ]
         )
-        score = float(response.content.strip())
+        out = response.content.strip()
+        log_llm_io("grounding_evaluator", assistant=out)
+        score = float(out)
         return max(0.0, min(1.0, score))
     except Exception:
         logger.warning("Grounding evaluator failed; defaulting to 0.5", exc_info=True)

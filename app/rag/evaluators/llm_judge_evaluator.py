@@ -13,6 +13,7 @@ from dataclasses import dataclass
 
 from langchain_core.messages import HumanMessage, SystemMessage
 
+from app.core.llm_io_log import log_llm_io
 from app.providers.judge_llm_provider import get_judge_llm
 
 logger = logging.getLogger(__name__)
@@ -93,21 +94,29 @@ def judge(
 
     context_str = "\n\n---\n\n".join(contexts[:5])
 
+    user_text = _HUMAN.format(
+        question=question,
+        context=context_str,
+        answer=answer,
+    )
+    log_llm_io(
+        "llm_judge",
+        system=_SYSTEM,
+        user=user_text,
+        user_query=question,
+        context=context_str,
+        prior_answer=answer,
+    )
     try:
         llm = get_judge_llm()
         response = llm.invoke(
             [
                 SystemMessage(content=_SYSTEM),
-                HumanMessage(
-                    content=_HUMAN.format(
-                        question=question,
-                        context=context_str,
-                        answer=answer,
-                    )
-                ),
+                HumanMessage(content=user_text),
             ]
         )
         raw = response.content.strip()
+        log_llm_io("llm_judge", assistant=raw)
         data = json.loads(raw)
 
         verdict = JudgeVerdict(
@@ -130,7 +139,7 @@ def judge(
 
     except json.JSONDecodeError as exc:
         logger.warning("Judge evaluator: failed to parse JSON response — %s", exc)
-        raw_resp = response.content if "response" in dir() else ""
+        raw_resp = getattr(response, "content", "") or ""
         return JudgeVerdict(error=f"JSON parse error: {exc}", raw_response=raw_resp)
     except Exception as exc:
         logger.warning("Judge evaluator failed: %s", exc, exc_info=True)

@@ -11,6 +11,7 @@ import logging
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from app.core.config import settings
+from app.core.llm_io_log import log_llm_io
 from app.graphs.crag.state import CRAGState
 from app.providers.llm_provider import get_llm
 from app.providers.vectorstore_provider import get_vectorstore
@@ -150,19 +151,28 @@ def generate_answer(state: CRAGState) -> dict:
         context_str = "(No relevant documents found)"
     logger.info("Generating answer from %d context chunks", len(contexts))
 
+    system_text = (
+        "You are a helpful AI assistant. Answer the user's question based ONLY on the "
+        "provided context. If the context does not contain enough information, say so."
+    )
+    user_text = f"Context:\n{context_str}\n\nQuestion: {query}\n\nAnswer:"
+    log_llm_io(
+        "generate_answer",
+        user_query=query,
+        context=context_str,
+        system=system_text,
+        user=user_text,
+    )
     llm = get_llm()
     response = llm.invoke(
         [
-            SystemMessage(
-                content=(
-                    "You are a helpful AI assistant. Answer the user's question based ONLY on the "
-                    "provided context. If the context does not contain enough information, say so."
-                )
-            ),
-            HumanMessage(content=f"Context:\n{context_str}\n\nQuestion: {query}\n\nAnswer:"),
+            SystemMessage(content=system_text),
+            HumanMessage(content=user_text),
         ]
     )
-    return {"answer": response.content.strip()}
+    answer = response.content.strip()
+    log_llm_io("generate_answer", assistant=answer)
+    return {"answer": answer}
 
 
 # ── run_judge ─────────────────────────────────────────────────────────────────

@@ -10,7 +10,6 @@ import logging
 
 from langchain_core.messages import HumanMessage, SystemMessage
 
-from app.core.config import settings
 from app.core.llm_io_log import log_llm_io
 from app.graphs.crag.state import CRAGState
 from app.providers.llm_provider import get_llm
@@ -87,14 +86,14 @@ def hybrid_retrieve(state: CRAGState) -> dict:
     When ``multi_query`` mode is enabled via env var ``MULTI_QUERY=1``,
     generates additional query variants and fuses the retrieval results.
     """
-    import os
+    from app.core.runtime_config import get_max_retrieval_docs, get_multi_query_enabled
 
     query = _active_query(state)
     attempt = state.get("retrieval_attempt", 0) + 1
     logger.info("Retrieval attempt %d for: %s", attempt, query)
 
     queries = [query]
-    if os.getenv("MULTI_QUERY", "0") == "1":
+    if get_multi_query_enabled():
         from app.rag.query.multi_query_generator import generate_multi_query
 
         queries = generate_multi_query(query, n=3)
@@ -103,7 +102,7 @@ def hybrid_retrieve(state: CRAGState) -> dict:
     store = get_vectorstore()
     seen: dict[str, dict] = {}
     for q in queries:
-        for r in store.search(q, top_k=settings.max_retrieval_docs):
+        for r in store.search(q, top_k=get_max_retrieval_docs()):
             seen.setdefault(r["text"], r)
 
     children = list(seen.values())
@@ -133,7 +132,10 @@ def rerank_context(state: CRAGState) -> dict:
 
     reranker = get_reranker()
     if reranker is not None:
-        contexts = reranker.rerank(query, contexts)
+        from app.core.runtime_config import get_rerank_top_k
+
+        top_k = get_rerank_top_k()
+        contexts = reranker.rerank(query, contexts, top_k=top_k)
 
     return {"expanded_contexts": contexts}
 
@@ -216,7 +218,9 @@ def evaluate_grounding(state: CRAGState) -> dict:
 def retry_with_policy(state: CRAGState) -> dict:
     """Increment the hallucination attempt counter and reset query for retry."""
     attempt = state.get("hallucination_attempt", 0) + 1
-    logger.info("Hallucination retry %d/%d", attempt, settings.max_retries)
+    from app.core.runtime_config import get_max_retries
+
+    logger.info("Hallucination retry %d/%d", attempt, get_max_retries())
     return {
         "hallucination_attempt": attempt,
         "needs_rewrite": True,

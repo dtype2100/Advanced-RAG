@@ -44,6 +44,10 @@ class Settings(BaseSettings):
     arq_queue_name: str = "arq:queue"
     ingest_queue_async: bool = False
 
+    # ── External inference (optional; TEI / custom endpoints) ─────────────────
+    tei_embedding_url: str = ""
+    tei_rerank_url: str = ""
+
     # ── Observability ──────────────────────────────────────────────────────────
     # When True, log full prompts and LLM outputs under logger ``app.llm_io`` (PII risk).
     log_llm_io: bool = Field(default=False, validation_alias="LOG_LLM_IO")

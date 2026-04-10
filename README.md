@@ -80,6 +80,19 @@ curl -X POST http://localhost:8000/api/v1/query \
   -d '{"question": "What is Python?"}'
 ```
 
+## Web UI (Chat + Studio)
+
+```bash
+make run
+make web-install   # once
+make web-dev       # http://localhost:5173 — proxies `/api` → :8000
+```
+
+- **/** — chat-style UI (markdown answers, collapsible retrieval sources)
+- **/studio** — runtime RAG parameters, read-only env snapshot, vLLM/Qdrant/TEI probe
+
+Set `CORS_ORIGINS` in `.env` if the UI runs on another origin. Production: `cd web && npm run build` and serve `web/dist`.
+
 ## Docker Compose (deployment)
 
 From the repository root:
@@ -115,6 +128,10 @@ Compose sets `QDRANT_URL`, `REDIS_URL`, and `VECTOR_BACKEND` for the Docker netw
 | GET | `/api/v1/jobs/{job_id}` | ARQ job status / result |
 | POST | `/api/v1/search` | Semantic search (no LLM) |
 | POST | `/api/v1/query` | Full CRAG chat pipeline |
+| GET | `/api/v1/studio/runtime` | Process-local RAG overrides + effective values |
+| PATCH | `/api/v1/studio/runtime` | Update overrides (JSON; `null` clears) |
+| GET | `/api/v1/studio/config` | Read-only env-backed settings snapshot |
+| POST | `/api/v1/studio/probe` | Reachability: vLLM, Qdrant, optional TEI URLs |
 
 OpenAPI: `http://localhost:8000/docs`
 
@@ -154,6 +171,9 @@ OPENAI_API_KEY=sk-your-key
 | `INGEST_QUEUE_ASYNC` | `false` | If `true` and `REDIS_URL` set, `POST /documents` returns 202 + job |
 | `ARQ_QUEUE_NAME` | `arq:queue` | Must match worker queue name |
 | `LOG_LLM_IO` | `false` | If `true`, log prompts/outputs under logger `app.llm_io` (sensitive) |
+| `CORS_ORIGINS` | `http://localhost:5173,...` | Comma-separated origins for browser UI |
+| `TEI_EMBEDDING_URL` | (empty) | Text Embeddings Inference URL (for Studio probe) |
+| `TEI_RERANK_URL` | (empty) | TEI reranker URL (for Studio probe) |
 
 Judge LLM (optional): `JUDGE_LLM_BACKEND`, `JUDGE_LLM_MODEL`, `JUDGE_VLLM_BASE_URL` — see `app/providers/judge_llm_provider.py`.
 
@@ -168,6 +188,8 @@ make run          # FastAPI dev server
 make worker       # ARQ worker (needs REDIS_URL)
 make vllm-serve   # vLLM on 8001
 make evals        # offline eval scripts
+make web-install  # web UI dependencies
+make web-dev      # Vite dev server :5173
 ```
 
 ## Project layout (high level)
@@ -189,6 +211,7 @@ app/
 docker-compose.yml          # api, qdrant, redis, worker
 docker/                     # Dockerfile, entrypoint
 evals/, scripts/, tests/     # offline evals, CLI, unit + integration tests
+web/                         # Vite React UI (chat + studio)
 ```
 
 See `AGENTS.md` for Cursor Cloud / VM notes (ports, vLLM gotchas, startup order).

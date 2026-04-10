@@ -8,17 +8,15 @@ from __future__ import annotations
 
 from typing import Any
 
-from app.core.config import settings
-
-_GROUNDING_THRESHOLD = 0.6
+from app.core.runtime_config import get_grounding_threshold, get_max_retries
 
 
 def should_retry(state: dict[str, Any]) -> bool:
     """Determine whether the pipeline should retry generation.
 
     Retry when:
-    - Grounding score is below ``_GROUNDING_THRESHOLD``.
-    - AND hallucination attempts are below ``settings.max_retries``.
+    - Grounding score is below the runtime (or default) grounding threshold.
+    - AND hallucination attempts are below the runtime (or settings) max retries.
 
     Args:
         state: Current CRAG graph state containing ``grounding_score``
@@ -30,5 +28,7 @@ def should_retry(state: dict[str, Any]) -> bool:
     """
     grounding_score = state.get("grounding_score", 1.0)
     attempts = state.get("hallucination_attempt", 0)
+    threshold = get_grounding_threshold()
+    max_r = get_max_retries()
 
-    return grounding_score < _GROUNDING_THRESHOLD and attempts < settings.max_retries
+    return grounding_score < threshold and attempts < max_r

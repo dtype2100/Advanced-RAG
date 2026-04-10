@@ -2,14 +2,17 @@
 
 from __future__ import annotations
 
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.v1.chat import router as chat_router
 from app.api.v1.health import router as health_router
 from app.api.v1.ingest import router as ingest_router
 from app.api.v1.jobs import router as jobs_router
+from app.api.v1.studio import router as studio_router
 from app.core.config import settings
 from app.core.logging import configure_logging, get_logger
 from app.queue.pool import close_arq_pool
@@ -41,6 +44,8 @@ async def lifespan(app: FastAPI):
     logger.info("Shutting down Advanced RAG service")
 
 
+_cors_origins = os.getenv("CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173").split(",")
+
 app = FastAPI(
     title="Advanced RAG API",
     description=(
@@ -56,6 +61,15 @@ app.include_router(health_router, prefix="/api/v1")
 app.include_router(ingest_router, prefix="/api/v1")
 app.include_router(chat_router, prefix="/api/v1")
 app.include_router(jobs_router, prefix="/api/v1")
+app.include_router(studio_router, prefix="/api/v1")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[o.strip() for o in _cors_origins if o.strip()],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 @app.get("/")

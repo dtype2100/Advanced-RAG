@@ -1,4 +1,4 @@
-.PHONY: install dev lint format test run vllm-serve worker evals clean
+.PHONY: install dev lint format test run vllm-serve worker evals web-install web-dev clean
 
 install:
 	pip install -e .
@@ -43,6 +43,12 @@ vllm-serve:
 
 evals:
 	python scripts/run_evals.py
+
+web-install:
+	cd web && npm install
+
+web-dev:
+	cd web && npm run dev
 
 clean:
 	find . -type d -name __pycache__ -exec rm -rf {} +

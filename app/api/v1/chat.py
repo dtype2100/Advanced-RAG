@@ -31,10 +31,13 @@ async def rag_query(req: ChatRequest) -> ChatResponse:
         logger.exception("RAG query failed")
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
+    raw_src = result.get("retrieved_children") or result.get("expanded_contexts", [])
+    sources = [x["text"] if isinstance(x, dict) else str(x) for x in raw_src]
+
     return ChatResponse(
         question=req.question,
         answer=result.get("answer", ""),
-        sources=result.get("retrieved_children") or result.get("expanded_contexts", []),
+        sources=sources,
         retries=result.get("hallucination_attempt", 0),
         clarification_needed=result.get("final_status") == "clarification_needed",
         clarification_question=result.get("clarification_question"),

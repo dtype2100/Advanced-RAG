@@ -10,8 +10,17 @@
 | FastAPI dev server | `make run` | 8000 | Auto-reloads on code changes |
 | Tests | `make test` | — | All tests work without vLLM running |
 | Lint | `make lint` | — | ruff check + format check |
+| ARQ worker | `make worker` | — | Requires `REDIS_URL`; processes async ingest jobs |
 
 ### Startup Order
+
+### Async ingest (ARQ + Redis)
+
+- Set `REDIS_URL` (e.g. `redis://localhost:6379`). Run Redis and `make worker` in another terminal.
+- `POST /api/v1/documents/async` always enqueues (202 + `job_id`). Poll `GET /api/v1/jobs/{job_id}`.
+- Optional: `INGEST_QUEUE_ASYNC=true` makes `POST /api/v1/documents` return 202 + job when `REDIS_URL` is set.
+- Docker Compose: start `redis`, `worker`, and `api` together; `api` and `worker` receive `REDIS_URL`.
+
 
 1. Start vLLM first (`make vllm-serve`) — takes ~3-5 min on CPU to load model
 2. Then start FastAPI (`make run`)

@@ -1,93 +1,134 @@
 # Advanced-RAG
 
-Self-corrective RAG system built with **FastAPI**, **LangGraph**, **Qdrant**, and **vLLM**.
+Agentic RAG system built with **FastAPI**, **LangGraph (CRAG graph)**, **Qdrant**, optional **vLLM** or **OpenAI**, and **ARQ + Redis** for background document ingestion.
 
-## Architecture
+## Features
 
-```
-Question → Retrieve (Qdrant) → Grade Documents (LLM) →┐
-                ↑                                       │
-                └── Rewrite Query (LLM) ←── irrelevant ─┘
-                                             relevant ──→ Generate Answer (LLM) → Response
-```
+- **CRAG pipeline**: conditional clarification, rewrite, retrieval, expansion, grounding, optional LLM-as-judge, feedback loop (up to 3 retries).
+- **Vector store**: Qdrant + FastEmbed; pluggable port (`VECTOR_BACKEND`) for future pgvector.
+- **LLM**: vLLM (OpenAI-compatible local server) or OpenAI API.
+- **Async ingest**: enqueue heavy indexing via **Redis + ARQ worker** (`POST /documents/async`, optional `INGEST_QUEUE_ASYNC` for `POST /documents`).
+- **Docker Compose**: `api`, `qdrant`, `redis`, `worker` services for deployment.
 
-**Key features:**
-- Self-corrective retrieval: automatically rewrites queries when documents are irrelevant
-- **vLLM**: local HuggingFace model serving via OpenAI-compatible API (CPU/GPU)
-- Qdrant vector store with FastEmbed (local embeddings, no API calls for embedding)
-- LangGraph `StateGraph` with conditional edges for the RAG loop
-- FastAPI REST API with Swagger docs at `/docs`
-- Dual LLM backend: vLLM (local) or OpenAI (remote)
+## Quick start (local)
 
-## Quick Start
-
-### 1. Install Dependencies
+### 1. Install dependencies
 
 ```bash
 pip install -e ".[dev]"
 ```
 
-### 2. Download Model from HuggingFace
+### 2. Model for vLLM (optional, for `/api/v1/query`)
 
 ```bash
 huggingface-cli download Qwen/Qwen2.5-0.5B-Instruct --local-dir models/Qwen2.5-0.5B-Instruct
 ```
 
-### 3. Start vLLM Server
-
-```bash
-# Install vLLM CPU wheel (if not already installed)
-export VLLM_VERSION=0.19.0
-pip install "https://github.com/vllm-project/vllm/releases/download/v${VLLM_VERSION}/vllm-${VLLM_VERSION}+cpu-cp38-abi3-manylinux_2_35_x86_64.whl" \
-  --extra-index-url https://download.pytorch.org/whl/cpu
-
-# Start vLLM server (port 8001)
-make vllm-serve
-```
-
-### 4. Start RAG API Server
+### 3. Environment
 
 ```bash
 cp .env.example .env
-make run
+# Edit .env — see Configuration Reference below
 ```
 
-### 5. Test the Pipeline
+### 4. vLLM (optional)
 
 ```bash
-# Ingest documents
-curl -X POST http://localhost:8000/api/v1/documents \
-  -H "Content-Type: application/json" \
-  -d '{"documents": [{"text": "Your document text here"}]}'
-
-# RAG query (uses vLLM)
-curl -X POST http://localhost:8000/api/v1/query \
-  -H "Content-Type: application/json" \
-  -d '{"question": "Your question here"}'
+make vllm-serve   # port 8001
 ```
 
-## API Endpoints
+### 5. API server
+
+```bash
+make run   # port 8000
+```
+
+### 6. Async ingest (optional)
+
+Requires Redis and a worker process:
+
+```bash
+# Terminal 1: Redis (e.g. docker run -p 6379:6379 redis:7-alpine)
+# Set in .env: REDIS_URL=redis://localhost:6379
+
+# Terminal 2
+make worker
+
+# Enqueue ingest (202 + job_id), then poll status
+curl -X POST http://localhost:8000/api/v1/documents/async \
+  -H "Content-Type: application/json" \
+  -d '{"documents": [{"text": "Your document text"}]}'
+curl http://localhost:8000/api/v1/jobs/<job_id>
+```
+
+### 7. Smoke test
+
+```bash
+# Ingest (synchronous if INGEST_QUEUE_ASYNC is false)
+curl -X POST http://localhost:8000/api/v1/documents \
+  -H "Content-Type: application/json" \
+  -d '{"documents": [{"text": "Python is a programming language."}]}'
+
+# Search (no LLM)
+curl -X POST http://localhost:8000/api/v1/search \
+  -H "Content-Type: application/json" \
+  -d '{"query": "programming", "top_k": 3}'
+
+# RAG query (needs vLLM or OPENAI_API_KEY)
+curl -X POST http://localhost:8000/api/v1/query \
+  -H "Content-Type: application/json" \
+  -d '{"question": "What is Python?"}'
+```
+
+## Docker Compose (deployment)
+
+From the repository root:
+
+```bash
+cp .env.example .env
+# Set secrets and overrides in .env as needed
+
+docker compose up --build -d
+```
+
+Services:
+
+| Service | Role |
+|---------|------|
+| `api` | FastAPI on port **8000** |
+| `qdrant` | Vector DB on **6333** |
+| `redis` | ARQ broker on **6379** |
+| `worker` | `arq app.workers.settings.WorkerSettings` — processes ingest jobs |
+
+Compose sets `QDRANT_URL`, `REDIS_URL`, and `VECTOR_BACKEND` for the Docker network. Ensure `.env` exists (or remove `env_file` and pass env another way in production).
+
+**Note:** The Qdrant image healthcheck uses `curl`. If healthchecks fail, verify the image includes `curl` or adjust the healthcheck in `docker-compose.yml`.
+
+## API endpoints
 
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/` | Service info |
-| GET | `/api/v1/health` | Health check (Qdrant + LLM status) |
-| POST | `/api/v1/documents` | Ingest documents into vector store |
-| POST | `/api/v1/search` | Semantic search (no LLM required) |
-| POST | `/api/v1/query` | Full self-corrective RAG pipeline |
+| GET | `/api/v1/health` | Health (Qdrant, LLM config) |
+| POST | `/api/v1/documents` | Ingest (sync, or 202 + `job_id` if `INGEST_QUEUE_ASYNC=true` and `REDIS_URL` set) |
+| POST | `/api/v1/documents/async` | Always enqueue ingest (202 + `job_id`; requires `REDIS_URL` + worker) |
+| GET | `/api/v1/jobs/{job_id}` | ARQ job status / result |
+| POST | `/api/v1/search` | Semantic search (no LLM) |
+| POST | `/api/v1/query` | Full CRAG chat pipeline |
 
-## LLM Backend Configuration
+OpenAPI: `http://localhost:8000/docs`
 
-### vLLM (default, local)
+## LLM configuration
+
+### vLLM (local)
 
 ```env
 LLM_BACKEND=vllm
 LLM_MODEL=Qwen/Qwen2.5-0.5B-Instruct
 VLLM_BASE_URL=http://localhost:8001/v1
-VLLM_MODEL_PATH=/workspace/models/Qwen2.5-0.5B-Instruct
 ```
 
-### OpenAI (remote)
+### OpenAI
 
 ```env
 LLM_BACKEND=openai
@@ -95,51 +136,58 @@ LLM_MODEL=gpt-4o-mini
 OPENAI_API_KEY=sk-your-key
 ```
 
-## Development
-
-```bash
-make dev       # Install with dev tools
-make lint      # Run linter
-make format    # Auto-format
-make test      # Run tests
-make run       # Start FastAPI dev server
-make vllm-serve  # Start vLLM on port 8001
-```
-
-## Project Structure
-
-```
-app/
-├── main.py              # FastAPI app with lifespan
-├── config.py            # Pydantic settings (vLLM/OpenAI dual backend)
-├── api/
-│   ├── routes.py        # API endpoint handlers
-│   └── schemas.py       # Request/response models
-├── rag/
-│   ├── graph.py         # LangGraph StateGraph (self-corrective RAG)
-│   ├── nodes.py         # Graph nodes (retrieve, grade, rewrite, generate)
-│   ├── prompts.py       # LLM prompt templates
-│   └── state.py         # RAGState TypedDict
-└── vectorstore/
-    └── store.py         # Qdrant wrapper with FastEmbed
-models/                  # HuggingFace models (gitignored)
-tests/
-├── test_api.py          # API endpoint tests
-└── test_vectorstore.py  # Vector store unit tests
-```
-
-## Configuration Reference
+## Configuration reference
 
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `LLM_BACKEND` | `vllm` | `vllm` or `openai` |
 | `LLM_MODEL` | `Qwen/Qwen2.5-0.5B-Instruct` | Model name |
-| `VLLM_BASE_URL` | `http://localhost:8001/v1` | vLLM server endpoint |
-| `VLLM_MODEL_PATH` | `/workspace/models/Qwen2.5-0.5B-Instruct` | Local model path |
-| `VLLM_MAX_MODEL_LEN` | `2048` | Max context length |
-| `OPENAI_API_KEY` | (empty) | Required if LLM_BACKEND=openai |
+| `VLLM_BASE_URL` | `http://localhost:8001/v1` | vLLM OpenAI-compatible base URL |
+| `OPENAI_API_KEY` | (empty) | Required if `LLM_BACKEND=openai` |
 | `EMBEDDING_MODEL` | `BAAI/bge-small-en-v1.5` | FastEmbed model |
 | `QDRANT_URL` | (empty = in-memory) | Qdrant server URL |
-| `COLLECTION_NAME` | `advanced_rag` | Qdrant collection name |
-| `MAX_RETRIEVAL_DOCS` | `5` | Top-K retrieval count |
-| `MAX_RETRIES` | `3` | Max query rewrite retries |
+| `COLLECTION_NAME` | `advanced_rag` | Collection name |
+| `VECTOR_BACKEND` | `qdrant` | `qdrant` or `pgvector` (stub) |
+| `MAX_RETRIEVAL_DOCS` | `5` | Top-K for retrieval |
+| `MAX_RETRIES` | `3` | Max feedback-loop retries in graph |
+| `REDIS_URL` | (empty) | Redis for ARQ; required for async ingest |
+| `INGEST_QUEUE_ASYNC` | `false` | If `true` and `REDIS_URL` set, `POST /documents` returns 202 + job |
+| `ARQ_QUEUE_NAME` | `arq:queue` | Must match worker queue name |
+
+Judge LLM (optional): `JUDGE_LLM_BACKEND`, `JUDGE_LLM_MODEL`, `JUDGE_VLLM_BASE_URL` — see `app/providers/judge_llm_provider.py`.
+
+## Development
+
+```bash
+make dev          # pip install -e ".[dev]"
+make lint         # ruff check + format check
+make format       # ruff fix + format
+make test         # pytest
+make run          # FastAPI dev server
+make worker       # ARQ worker (needs REDIS_URL)
+make vllm-serve   # vLLM on 8001
+make evals        # offline eval scripts
+```
+
+## Project layout (high level)
+
+```
+app/
+├── main.py                 # FastAPI app, routers, lifespan
+├── core/                   # config, logging, security, constants
+├── api/v1/                 # health, ingest, chat, jobs
+├── schemas/                # Pydantic request/response models
+├── services/               # chat, ingest, index, document
+├── storage/                # vectorstores (Qdrant, factory), redis/postgres stubs
+├── providers/              # LLM, judge LLM, embedding, vectorstore, reranker, cache
+├── queue/                  # ARQ Redis pool for API enqueue
+├── workers/                # ARQ job functions + WorkerSettings
+├── graphs/crag/            # LangGraph: graph, nodes, routes, state
+├── rag/                    # loaders, chunkers, retrievers, policies, evaluators, …
+└── prompts/                # YAML prompt templates
+docker-compose.yml          # api, qdrant, redis, worker
+docker/                     # Dockerfile, entrypoint
+evals/, scripts/, tests/     # offline evals, CLI, unit + integration tests
+```
+
+See `AGENTS.md` for Cursor Cloud / VM notes (ports, vLLM gotchas, startup order).

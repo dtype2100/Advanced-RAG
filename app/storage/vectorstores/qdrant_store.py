@@ -67,9 +67,17 @@ class QdrantStore(VectorStorePort):
         return self.embed_texts([text])[0]
 
     @staticmethod
-    def _deterministic_id(text: str) -> str:
-        """Generate a deterministic UUID-v5 from text content for deduplication."""
-        return str(uuid.uuid5(uuid.NAMESPACE_DNS, text))
+    def _deterministic_id(text: str, metadata: dict[str, Any]) -> str:
+        """Generate a stable UUID-v5 using text + provenance metadata."""
+        key_parts = [
+            text,
+            str(metadata.get("source", "")),
+            str(metadata.get("doc_id", "")),
+            str(metadata.get("parent_id", "")),
+            str(metadata.get("chunk_index", "")),
+        ]
+        key = "|".join(key_parts)
+        return str(uuid.uuid5(uuid.NAMESPACE_DNS, key))
 
     # ── VectorStorePort interface ─────────────────────────────────────────────
 
@@ -105,7 +113,7 @@ class QdrantStore(VectorStorePort):
 
         points = [
             PointStruct(
-                id=self._deterministic_id(text),
+                id=self._deterministic_id(text, meta),
                 vector=vec,
                 payload={"text": text, **meta},
             )

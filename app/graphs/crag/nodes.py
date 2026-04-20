@@ -13,7 +13,6 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from app.core.llm_io_log import log_llm_io
 from app.graphs.crag.state import CRAGState
 from app.providers.llm_provider import get_llm
-from app.providers.vectorstore_provider import get_vectorstore
 
 logger = logging.getLogger(__name__)
 
@@ -81,12 +80,16 @@ def rewrite_query(state: CRAGState) -> dict:
 
 
 def hybrid_retrieve(state: CRAGState) -> dict:
-    """Retrieve relevant child chunks using hybrid (vector + BM25) search.
+    """Retrieve relevant child chunks with multi-query RRF fusion.
 
-    When ``multi_query`` mode is enabled via env var ``MULTI_QUERY=1``,
-    generates additional query variants and fuses the retrieval results.
+    Uses ``hybrid_retriever.hybrid_retrieve`` per query variant and then fuses
+    across variants with RRF to improve recall while keeping deterministic ranking.
     """
     from app.core.runtime_config import get_max_retrieval_docs, get_multi_query_enabled
+    from app.rag.retrievers.hybrid_retriever import (
+        hybrid_retrieve as run_hybrid,
+    )
+    from app.rag.retrievers.hybrid_retriever import reciprocal_rank_fusion
 
     query = _active_query(state)
     attempt = state.get("retrieval_attempt", 0) + 1
@@ -99,13 +102,13 @@ def hybrid_retrieve(state: CRAGState) -> dict:
         queries = generate_multi_query(query, n=3)
         logger.info("Multi-query: %d variants", len(queries))
 
-    store = get_vectorstore()
-    seen: dict[str, dict] = {}
+    retrieval_k = max(10, get_max_retrieval_docs() * 4)
+    ranked_lists: list[list[dict]] = []
     for q in queries:
-        for r in store.search(q, top_k=get_max_retrieval_docs()):
-            seen.setdefault(r["text"], r)
+        ranked_lists.append(run_hybrid(q, top_k=retrieval_k))
 
-    children = list(seen.values())
+    fused = reciprocal_rank_fusion(ranked_lists)
+    children = fused[:retrieval_k]
     return {"retrieved_children": children, "retrieval_attempt": attempt}
 
 
@@ -113,10 +116,36 @@ def hybrid_retrieve(state: CRAGState) -> dict:
 
 
 def expand_context(state: CRAGState) -> dict:
-    """Expand child hits to parent / larger chunks (small-to-big strategy)."""
+    """Expand child hits to parent chunks when ``parent_text`` is available."""
     children = state.get("retrieved_children", [])
     logger.info("Expanding %d child chunks to parent context", len(children))
-    return {"expanded_contexts": children}
+
+    expanded: list[dict] = []
+    seen_texts: set[str] = set()
+    for child in children:
+        if not isinstance(child, dict):
+            text = str(child)
+            if text and text not in seen_texts:
+                seen_texts.add(text)
+                expanded.append({"text": text, "score": 0.0, "metadata": {}})
+            continue
+
+        metadata = dict(child.get("metadata", {}))
+        parent_text = metadata.get("parent_text")
+        text = str(parent_text or child.get("text", ""))
+        if not text or text in seen_texts:
+            continue
+
+        seen_texts.add(text)
+        expanded.append(
+            {
+                "text": text,
+                "score": child.get("score", 0.0),
+                "metadata": metadata,
+            }
+        )
+
+    return {"expanded_contexts": expanded or children}
 
 
 # ── rerank_context ────────────────────────────────────────────────────────────

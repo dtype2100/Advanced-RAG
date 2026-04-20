@@ -9,6 +9,13 @@ from __future__ import annotations
 from typing import Any
 
 
+def _child_text_len(child: Any) -> int:
+    """Return text length for child item regardless of shape."""
+    if isinstance(child, dict):
+        return len(str(child.get("text", "")))
+    return len(str(child))
+
+
 def should_expand(state: dict[str, Any]) -> bool:
     """Determine whether retrieved child chunks should be expanded.
 
@@ -27,6 +34,6 @@ def should_expand(state: dict[str, Any]) -> bool:
     if not children:
         return False
 
-    avg_len = sum(len(c) for c in children) / len(children)
+    avg_len = sum(_child_text_len(c) for c in children) / len(children)
     # Expand if average child chunk is shorter than 300 characters
     return avg_len < 300

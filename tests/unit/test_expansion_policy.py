@@ -19,3 +19,23 @@ def test_long_chunks_no_expansion():
     long_chunk = "x" * 500
     state = {"retrieved_children": [long_chunk, long_chunk]}
     assert should_expand(state) is False
+
+
+def test_dict_children_uses_text_length():
+    state = {
+        "retrieved_children": [
+            {"text": "x" * 20, "metadata": {}},
+            {"text": "y" * 25, "metadata": {}},
+        ]
+    }
+    assert should_expand(state) is True
+
+
+def test_dict_children_long_text_no_expand():
+    state = {
+        "retrieved_children": [
+            {"text": "x" * 400, "metadata": {}},
+            {"text": "y" * 500, "metadata": {}},
+        ]
+    }
+    assert should_expand(state) is False

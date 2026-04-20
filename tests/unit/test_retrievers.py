@@ -23,3 +23,10 @@ def test_rrf_single_list():
 
 def test_rrf_empty_input():
     assert reciprocal_rank_fusion([]) == []
+
+
+def test_rrf_prefers_consensus_doc():
+    list_a = [{"text": "consensus", "score": 0.9}, {"text": "a_only", "score": 0.8}]
+    list_b = [{"text": "consensus", "score": 0.7}, {"text": "b_only", "score": 0.6}]
+    merged = reciprocal_rank_fusion([list_a, list_b])
+    assert merged[0]["text"] == "consensus"

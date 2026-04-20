@@ -41,8 +41,7 @@ def run_ingest(
     enriched = [extract_metadata(d) for d in cleaned]
     unique = dedup_documents(enriched)
 
-    texts = [d["text"] for d in unique]
-    chunks = recursive_chunk(texts, chunk_size=chunk_size, chunk_overlap=chunk_overlap)
+    chunks = recursive_chunk(unique, chunk_size=chunk_size, chunk_overlap=chunk_overlap)
 
     if not chunks:
         logger.warning("No chunks produced from %d docs", len(raw_docs))

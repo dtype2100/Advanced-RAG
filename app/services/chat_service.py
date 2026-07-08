@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import logging
+import time
 from typing import Any
 
+from app.core.metrics import record_rag_query
 from app.graphs.crag.graph import crag_chain
 from app.rag.guards.policy_guard import is_allowed
 
@@ -25,6 +27,7 @@ def run_chat(
         Result dict with ``answer``, ``final_status``, and graph state fields.
     """
     if not is_allowed(question):
+        record_rag_query(status="blocked", duration_seconds=0.0)
         return {
             "answer": "I'm sorry, but I can't help with that request.",
             "final_status": "blocked",
@@ -36,10 +39,14 @@ def run_chat(
         "hallucination_attempt": 0,
     }
 
+    start = time.perf_counter()
     try:
         result = crag_chain.invoke(initial_state)
-        logger.info("Chat completed, status=%s", result.get("final_status", "ok"))
+        status = str(result.get("final_status", "ok"))
+        record_rag_query(status=status, duration_seconds=time.perf_counter() - start)
+        logger.info("Chat completed, status=%s", status)
         return result
     except Exception:
+        record_rag_query(status="error", duration_seconds=time.perf_counter() - start)
         logger.exception("Chat service error for question: %s", question[:80])
         raise

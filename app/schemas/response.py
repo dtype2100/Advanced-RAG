@@ -34,7 +34,24 @@ class HealthResponse(BaseModel):
     """Health / readiness check response."""
 
     status: str
+    version: str = "0.2.0"
     llm_backend: str
     llm_model: str
     qdrant: str
     collection: str
+    redis: str = "not_configured"
+    llm: str = "skipped"
+    auth_enabled: bool = False
+
+
+class LivenessResponse(BaseModel):
+    """Liveness probe response."""
+
+    status: str
+
+
+class ReadinessResponse(BaseModel):
+    """Readiness probe response with per-dependency checks."""
+
+    status: str
+    checks: dict[str, dict[str, str]]

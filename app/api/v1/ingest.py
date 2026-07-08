@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse
 
+from app.api.dependencies import RequireAPIKey
 from app.core.config import settings
+from app.core.metrics import record_ingest
 from app.queue.pool import get_arq_pool
 from app.schemas.document import IngestJobResponse, IngestRequest, IngestResponse
 from app.schemas.request import SearchRequest
@@ -41,19 +43,22 @@ async def _enqueue_ingest(raw_docs: list[dict]) -> IngestJobResponse:
     },
     tags=["documents"],
 )
-async def ingest(req: IngestRequest):
+async def ingest(req: IngestRequest, _: None = Depends(RequireAPIKey)):
     """Ingest documents (sync) or enqueue when ``INGEST_QUEUE_ASYNC`` and ``REDIS_URL`` are set."""
     raw_docs = [{"text": d.text, "metadata": d.metadata} for d in req.documents]
 
     if settings.ingest_queue_async and settings.redis_url:
         accepted = await _enqueue_ingest(raw_docs)
+        record_ingest(mode="async", status="queued")
         return JSONResponse(status_code=202, content=accepted.model_dump())
 
     try:
         count = ingest_documents(raw_docs)
     except Exception as exc:
         logger.exception("Ingestion failed")
+        record_ingest(mode="sync", status="error")
         raise HTTPException(status_code=500, detail=str(exc)) from exc
+    record_ingest(mode="sync", status="success")
     return IngestResponse(message="Documents ingested successfully", count=count)
 
 
@@ -63,7 +68,7 @@ async def ingest(req: IngestRequest):
     status_code=202,
     tags=["documents"],
 )
-async def ingest_async(req: IngestRequest) -> IngestJobResponse:
+async def ingest_async(req: IngestRequest, _: None = Depends(RequireAPIKey)) -> IngestJobResponse:
     """Always enqueue ingest (requires ``REDIS_URL``)."""
     if not settings.redis_url:
         raise HTTPException(
@@ -71,11 +76,13 @@ async def ingest_async(req: IngestRequest) -> IngestJobResponse:
             detail="Async ingest requires REDIS_URL and a running ARQ worker.",
         )
     raw_docs = [{"text": d.text, "metadata": d.metadata} for d in req.documents]
-    return await _enqueue_ingest(raw_docs)
+    result = await _enqueue_ingest(raw_docs)
+    record_ingest(mode="async", status="queued")
+    return result
 
 
 @router.post("/search", response_model=SearchResponse, tags=["search"])
-async def semantic_search(req: SearchRequest) -> SearchResponse:
+async def semantic_search(req: SearchRequest, _: None = Depends(RequireAPIKey)) -> SearchResponse:
     """Perform a semantic similarity search without RAG generation."""
     try:
         results = search_documents(req.query, top_k=req.top_k)

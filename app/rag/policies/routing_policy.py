@@ -89,3 +89,45 @@ def route_after_grounding(state: dict[str, Any]) -> str:
     from app.rag.policies.retry_policy import should_retry
 
     return "retry_with_policy" if should_retry(state) else "end"
+
+
+def route_after_feedback(state: dict[str, Any]) -> str:
+    """Post-verification feedback router — judge verdict first, then grounding.
+
+    Implements the final **feedback** phase of the improvement loop:
+    analysis → verification → search → test → evaluation → verification → **feedback**.
+
+    Priority:
+    1. Judge says reject → ``"reject"``
+    2. Judge says retry_retrieval → ``"retry_retrieval"``
+    3. Judge says retry_generation → ``"retry_generation"``
+    4. Grounding below threshold → ``"retry_with_policy"``
+    5. Otherwise → ``"end"``
+
+    Returns:
+        Routing key for the feedback conditional edges in the CRAG graph.
+    """
+    from app.core.config import settings
+    from app.rag.policies.judge_policy import decide_next_action
+    from app.rag.policies.retry_policy import should_retry
+
+    verdict = state.get("judge_verdict")
+    attempt = state.get("hallucination_attempt", 0)
+
+    if verdict is not None:
+        action = decide_next_action(
+            verdict,
+            hallucination_attempt=attempt,
+            max_retries=settings.max_retries,
+        )
+        if action == "reject":
+            return "reject"
+        if action == "retry_retrieval":
+            return "retry_retrieval"
+        if action == "retry_generation":
+            return "retry_generation"
+
+    if should_retry(state):
+        return "retry_with_policy"
+
+    return "end"

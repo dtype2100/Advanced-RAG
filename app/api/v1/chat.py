@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
+from app.api.dependencies import RequireAPIKey
 from app.core.config import settings
 from app.schemas.request import ChatRequest
 from app.schemas.response import ChatResponse
@@ -17,7 +18,7 @@ router = APIRouter()
 
 
 @router.post("/query", response_model=ChatResponse, tags=["rag"])
-async def rag_query(req: ChatRequest) -> ChatResponse:
+async def rag_query(req: ChatRequest, _: None = Depends(RequireAPIKey)) -> ChatResponse:
     """Run the full CRAG pipeline (analyse → retrieve → rerank → generate → evaluate)."""
     if not settings.using_vllm and not settings.openai_api_key:
         raise HTTPException(

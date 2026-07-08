@@ -18,10 +18,12 @@ Graph flow:
     generate_answer
       ↓
     evaluate_grounding
-      ↓ (grounding_score < threshold AND retries < max?)
-    [retry_with_policy] → decide_rewrite (loop, max 3×)
-      ↓
-    END
+      ↓ (grounding ok?) → END
+      ↓ (low grounding, retries remain)
+    run_judge
+      ↓ (accept?) → END
+      ↓ (retry?) → retry_with_policy → decide_rewrite (loop, max 3×)
+      ↓ (reject?) → mark_rejected → END
 """
 
 from __future__ import annotations
@@ -36,13 +38,16 @@ from app.graphs.crag.nodes import (
     expand_context,
     generate_answer,
     hybrid_retrieve,
+    mark_rejected,
     rerank_context,
     retry_with_policy,
     rewrite_query,
+    run_judge,
 )
 from app.graphs.crag.routes import (
     route_after_analyze,
     route_after_grounding,
+    route_after_judge_eval,
     route_after_retrieve,
     route_after_rewrite_decision,
 )
@@ -58,7 +63,6 @@ def build_crag_graph() -> StateGraph:
     """
     graph = StateGraph(CRAGState)
 
-    # ── Register nodes ────────────────────────────────────────────────────────
     graph.add_node("analyze_query", analyze_query)
     graph.add_node("ask_clarification", ask_clarification)
     graph.add_node("decide_rewrite", decide_rewrite)
@@ -68,12 +72,12 @@ def build_crag_graph() -> StateGraph:
     graph.add_node("rerank_context", rerank_context)
     graph.add_node("generate_answer", generate_answer)
     graph.add_node("evaluate_grounding", evaluate_grounding)
+    graph.add_node("run_judge", run_judge)
     graph.add_node("retry_with_policy", retry_with_policy)
+    graph.add_node("mark_rejected", mark_rejected)
 
-    # ── Entry point ───────────────────────────────────────────────────────────
     graph.set_entry_point("analyze_query")
 
-    # ── Conditional: clarification ────────────────────────────────────────────
     graph.add_conditional_edges(
         "analyze_query",
         route_after_analyze,
@@ -81,7 +85,6 @@ def build_crag_graph() -> StateGraph:
     )
     graph.add_edge("ask_clarification", END)
 
-    # ── Conditional: rewrite ──────────────────────────────────────────────────
     graph.add_conditional_edges(
         "decide_rewrite",
         route_after_rewrite_decision,
@@ -89,7 +92,6 @@ def build_crag_graph() -> StateGraph:
     )
     graph.add_edge("rewrite_query", "hybrid_retrieve")
 
-    # ── Conditional: context expansion ───────────────────────────────────────
     graph.add_conditional_edges(
         "hybrid_retrieve",
         route_after_retrieve,
@@ -99,13 +101,23 @@ def build_crag_graph() -> StateGraph:
     graph.add_edge("rerank_context", "generate_answer")
     graph.add_edge("generate_answer", "evaluate_grounding")
 
-    # ── Conditional: hallucination feedback loop (max 3×) ────────────────────
     graph.add_conditional_edges(
         "evaluate_grounding",
         route_after_grounding,
-        {"retry_with_policy": "retry_with_policy", "end": END},
+        {"run_judge": "run_judge", "end": END},
+    )
+
+    graph.add_conditional_edges(
+        "run_judge",
+        route_after_judge_eval,
+        {
+            "retry_with_policy": "retry_with_policy",
+            "mark_rejected": "mark_rejected",
+            "end": END,
+        },
     )
     graph.add_edge("retry_with_policy", "decide_rewrite")
+    graph.add_edge("mark_rejected", END)
 
     return graph.compile()
 

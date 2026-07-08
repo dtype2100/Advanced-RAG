@@ -33,6 +33,27 @@ class Settings(BaseSettings):
     # ── RAG pipeline ─────────────────────────────────────────────────────────
     max_retrieval_docs: int = 5
     max_retries: int = 3  # hallucination feedback loop 최대 횟수
+    multi_query: bool = False
+    use_parent_child_chunking: bool = True
+    reranker_backend: str = "none"  # none | cross_encoder | llm
+    rerank_top_k: int = 5
+    grounding_threshold: float = 0.6
+
+    # ── CORS (Web UI) ────────────────────────────────────────────────────────
+    cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
+
+    # ── Chat history ─────────────────────────────────────────────────────────
+    chat_history_max_messages: int = 20
+    vector_backend: str = "qdrant"  # qdrant | pgvector
+
+    # ── Judge LLM (optional override for evaluation) ─────────────────────────
+    judge_llm_backend: str = ""
+    judge_llm_model: str = ""
+    judge_llm_temperature: float = 0.0
+    judge_vllm_base_url: str = ""
+
+    # ── Security ─────────────────────────────────────────────────────────────
+    api_key: str = ""
 
     # ── Server ───────────────────────────────────────────────────────────────
     host: str = "0.0.0.0"

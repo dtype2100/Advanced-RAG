@@ -3,7 +3,12 @@
 from __future__ import annotations
 
 from app.rag.evaluators.llm_judge_evaluator import JudgeVerdict
-from app.rag.policies.routing_policy import route_after_grounding, route_after_judge
+from app.rag.policies.routing_policy import (
+    route_after_grounding as route_after_grounding_policy,
+)
+from app.rag.policies.routing_policy import (
+    route_after_judge,
+)
 
 
 def test_route_after_judge_accept():
@@ -32,17 +37,17 @@ def test_route_after_judge_reject_at_max_retries():
 
 def test_route_after_grounding_high_score_ends():
     state = {"grounding_score": 0.9, "hallucination_attempt": 0}
-    assert route_after_grounding(state) == "end"
+    assert route_after_grounding_policy(state) == "end"
 
 
-def test_route_after_grounding_low_score_retries():
+def test_route_after_grounding_low_score_runs_judge():
     state = {"grounding_score": 0.2, "hallucination_attempt": 0}
-    assert route_after_grounding(state) == "retry_with_policy"
+    assert route_after_grounding_policy(state) == "run_judge"
 
 
 def test_route_after_grounding_max_retries_ends():
     state = {"grounding_score": 0.1, "hallucination_attempt": 3}
-    assert route_after_grounding(state) == "end"
+    assert route_after_grounding_policy(state) == "end"
 
 
 def test_route_after_judge_no_verdict_accepts():

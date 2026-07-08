@@ -15,10 +15,12 @@ from app.core.config import settings
 from app.graphs.crag.state import CRAGState
 from app.rag.policies.routing_policy import (
     route_after_clarification_check,
-    route_after_grounding,
     route_after_judge,
     route_after_retrieval,
     route_after_rewrite_check,
+)
+from app.rag.policies.routing_policy import (
+    route_after_grounding as route_after_grounding_policy,
 )
 
 logger = logging.getLogger(__name__)
@@ -51,20 +53,24 @@ def route_after_retrieve(state: CRAGState) -> str:
 
 
 def route_after_judge_eval(state: CRAGState) -> str:
-    """Route after judge evaluation — accept / retry / reject."""
-    result = route_after_judge(state)
+    """Route after judge evaluation — accept, retry, or reject."""
+    action = route_after_judge(state)
     logger.info(
         "Route after judge → %s (attempt %d/%d)",
-        result,
+        action,
         state.get("hallucination_attempt", 0),
         settings.max_retries,
     )
-    return result
+    if action in ("retry_retrieval", "retry_generation"):
+        return "retry_with_policy"
+    if action == "reject":
+        return "mark_rejected"
+    return "end"
 
 
-def route_after_grounding_eval(state: CRAGState) -> str:
-    """Route after grounding evaluation — retry or end."""
-    result = route_after_grounding(state)
+def route_after_grounding(state: CRAGState) -> str:
+    """Route after grounding evaluation — invoke judge or end."""
+    result = route_after_grounding_policy(state)
     logger.info(
         "Route after grounding → %s (score=%.2f, attempt %d/%d)",
         result,

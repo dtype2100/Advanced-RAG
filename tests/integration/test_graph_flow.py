@@ -5,8 +5,10 @@ from __future__ import annotations
 from app.graphs.crag.routes import (
     route_after_analyze,
     route_after_grounding,
+    route_after_judge_eval,
     route_after_rewrite_decision,
 )
+from app.rag.evaluators.llm_judge_evaluator import JudgeVerdict
 
 
 def test_route_after_analyze_no_clarification():
@@ -34,9 +36,15 @@ def test_route_after_grounding_high_score_ends():
     assert route_after_grounding(state) == "end"
 
 
-def test_route_after_grounding_low_score_retries():
+def test_route_after_grounding_low_score_runs_judge():
     state = {"grounding_score": 0.2, "hallucination_attempt": 0}
-    assert route_after_grounding(state) == "retry_with_policy"
+    assert route_after_grounding(state) == "run_judge"
+
+
+def test_route_after_judge_retry_maps_to_retry_with_policy():
+    verdict = JudgeVerdict(correctness=0.9, faithfulness=0.2, completeness=0.9, conciseness=0.9)
+    state = {"judge_verdict": verdict, "hallucination_attempt": 0}
+    assert route_after_judge_eval(state) == "retry_with_policy"
 
 
 def test_route_after_grounding_max_retries_ends():

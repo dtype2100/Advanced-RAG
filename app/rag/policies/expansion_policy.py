@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from app.rag.types import chunk_text
+
 
 def should_expand(state: dict[str, Any]) -> bool:
     """Determine whether retrieved child chunks should be expanded.
@@ -27,6 +29,6 @@ def should_expand(state: dict[str, Any]) -> bool:
     if not children:
         return False
 
-    avg_len = sum(len(c) for c in children) / len(children)
+    avg_len = sum(len(chunk_text(c)) for c in children) / len(children)
     # Expand if average child chunk is shorter than 300 characters
     return avg_len < 300

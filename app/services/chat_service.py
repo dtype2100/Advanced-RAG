@@ -11,15 +11,50 @@ from app.rag.guards.policy_guard import is_allowed
 logger = logging.getLogger(__name__)
 
 
+def _build_initial_state(
+    question: str,
+    top_k: int | None = None,
+    chat_history: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    """Build the initial CRAG graph state for a user question."""
+    state: dict[str, Any] = {
+        "user_query": question,
+        "retrieval_attempt": 0,
+        "hallucination_attempt": 0,
+        "chat_history": chat_history or [],
+    }
+    if top_k is not None:
+        state["top_k"] = top_k
+    return state
+
+
+def _persist_session(
+    session_id: str | None,
+    question: str,
+    answer: str,
+) -> None:
+    """Append user/assistant turns to chat history when a session is provided."""
+    if not session_id:
+        return
+
+    from app.storage.chat_history import get_chat_history_store
+
+    store = get_chat_history_store()
+    store.append(session_id, {"role": "user", "content": question})
+    store.append(session_id, {"role": "assistant", "content": answer})
+
+
 def run_chat(
     question: str,
     session_id: str | None = None,
+    top_k: int | None = None,
 ) -> dict[str, Any]:
     """Run the full CRAG pipeline for a user question.
 
     Args:
         question:   Raw user question.
         session_id: Optional chat session identifier for history tracking.
+        top_k:      Override for number of documents to retrieve.
 
     Returns:
         Result dict with ``answer``, ``final_status``, and graph state fields.
@@ -30,16 +65,52 @@ def run_chat(
             "final_status": "blocked",
         }
 
-    initial_state = {
-        "user_query": question,
-        "retrieval_attempt": 0,
-        "hallucination_attempt": 0,
-    }
+    history: list[dict[str, Any]] = []
+    if session_id:
+        from app.storage.chat_history import get_chat_history_store
+
+        history = get_chat_history_store().get(session_id)
+
+    initial_state = _build_initial_state(question, top_k=top_k, chat_history=history)
 
     try:
         result = crag_chain.invoke(initial_state)
         logger.info("Chat completed, status=%s", result.get("final_status", "ok"))
+        _persist_session(session_id, question, result.get("answer", ""))
         return result
     except Exception:
         logger.exception("Chat service error for question: %s", question[:80])
         raise
+
+
+def stream_chat(
+    question: str,
+    session_id: str | None = None,
+    top_k: int | None = None,
+):
+    """Yield CRAG graph node outputs as they complete (for SSE streaming).
+
+    Args:
+        question:   Raw user question.
+        session_id: Optional chat session identifier for history tracking.
+        top_k:      Override for number of documents to retrieve.
+
+    Yields:
+        Dicts mapping node names to partial state updates.
+    """
+    if not is_allowed(question):
+        yield {
+            "blocked": {
+                "answer": "I'm sorry, but I can't help with that request.",
+                "final_status": "blocked",
+            }
+        }
+        return
+
+    history: list[dict[str, Any]] = []
+    if session_id:
+        from app.storage.chat_history import get_chat_history_store
+
+        history = get_chat_history_store().get(session_id)
+
+    yield from crag_chain.stream(_build_initial_state(question, top_k=top_k, chat_history=history))

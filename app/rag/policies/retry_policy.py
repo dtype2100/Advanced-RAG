@@ -10,14 +10,12 @@ from typing import Any
 
 from app.core.config import settings
 
-_GROUNDING_THRESHOLD = 0.6
-
 
 def should_retry(state: dict[str, Any]) -> bool:
     """Determine whether the pipeline should retry generation.
 
     Retry when:
-    - Grounding score is below ``_GROUNDING_THRESHOLD``.
+    - Grounding score is below ``settings.grounding_threshold``.
     - AND hallucination attempts are below ``settings.max_retries``.
 
     Args:
@@ -31,4 +29,4 @@ def should_retry(state: dict[str, Any]) -> bool:
     grounding_score = state.get("grounding_score", 1.0)
     attempts = state.get("hallucination_attempt", 0)
 
-    return grounding_score < _GROUNDING_THRESHOLD and attempts < settings.max_retries
+    return grounding_score < settings.grounding_threshold and attempts < settings.max_retries

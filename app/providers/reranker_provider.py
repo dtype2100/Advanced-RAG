@@ -6,7 +6,8 @@ Placeholder: wire up a ``CrossEncoderReranker`` or API-based reranker here.
 from __future__ import annotations
 
 import logging
-import os
+
+from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -16,7 +17,7 @@ def get_reranker():
 
     Set ``RERANKER_BACKEND`` env var to ``cross_encoder`` or ``llm`` to enable.
     """
-    backend = os.getenv("RERANKER_BACKEND", "none").lower()
+    backend = settings.reranker_backend.lower()
 
     if backend == "none":
         return None

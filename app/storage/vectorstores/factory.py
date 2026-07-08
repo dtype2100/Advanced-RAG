@@ -7,8 +7,8 @@ other caller can obtain a store instance without knowing the concrete class.
 from __future__ import annotations
 
 import logging
-import os
 
+from app.core.config import settings
 from app.storage.vectorstores.base import VectorStorePort
 
 logger = logging.getLogger(__name__)
@@ -27,7 +27,7 @@ def create_vectorstore(backend: str | None = None) -> VectorStorePort:
     Raises:
         ValueError: If ``backend`` is not a known implementation name.
     """
-    name = (backend or os.getenv("VECTOR_BACKEND", "qdrant")).lower()
+    name = (backend or settings.vector_backend).lower()
 
     if name == "qdrant":
         from app.storage.vectorstores.qdrant_store import QdrantStore

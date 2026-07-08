@@ -1,4 +1,4 @@
-.PHONY: install dev lint format test run vllm-serve worker evals clean
+.PHONY: install dev lint format test test-unit test-integration test-evals run web-dev vllm-serve worker evals clean
 
 install:
 	pip install -e .
@@ -7,24 +7,30 @@ dev:
 	pip install -e ".[dev]"
 
 lint:
-	ruff check app/ tests/ evals/ scripts/
-	ruff format --check app/ tests/ evals/ scripts/
+	PATH="$(HOME)/.local/bin:$$PATH" ruff check app/ tests/ evals/ scripts/
+	PATH="$(HOME)/.local/bin:$$PATH" ruff format --check app/ tests/ evals/ scripts/
 
 format:
-	ruff check --fix app/ tests/ evals/ scripts/
-	ruff format app/ tests/ evals/ scripts/
+	PATH="$(HOME)/.local/bin:$$PATH" ruff check --fix app/ tests/ evals/ scripts/
+	PATH="$(HOME)/.local/bin:$$PATH" ruff format app/ tests/ evals/ scripts/
 
 test:
-	pytest -v
+	PATH="$(HOME)/.local/bin:$$PATH" pytest -v
 
 test-unit:
-	pytest -v tests/unit/
+	PATH="$(HOME)/.local/bin:$$PATH" pytest -v tests/unit/
 
 test-integration:
-	pytest -v tests/integration/
+	PATH="$(HOME)/.local/bin:$$PATH" pytest -v tests/integration/
+
+test-evals:
+	PATH="$(HOME)/.local/bin:$$PATH" pytest -v tests/evals/
 
 run:
-	uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+	PATH="$(HOME)/.local/bin:$$PATH" uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+
+web-dev:
+	cd web && npm install && npm run dev -- --host 0.0.0.0 --port 5173
 
 worker:
 	arq app.workers.settings.WorkerSettings

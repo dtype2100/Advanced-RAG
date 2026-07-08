@@ -7,21 +7,21 @@ dev:
 	pip install -e ".[dev]"
 
 lint:
-	ruff check app/ tests/ evals/ scripts/
-	ruff format --check app/ tests/ evals/ scripts/
+	PATH="$(HOME)/.local/bin:$$PATH" ruff check app/ tests/ evals/ scripts/
+	PATH="$(HOME)/.local/bin:$$PATH" ruff format --check app/ tests/ evals/ scripts/
 
 format:
-	ruff check --fix app/ tests/ evals/ scripts/
-	ruff format app/ tests/ evals/ scripts/
+	PATH="$(HOME)/.local/bin:$$PATH" ruff check --fix app/ tests/ evals/ scripts/
+	PATH="$(HOME)/.local/bin:$$PATH" ruff format app/ tests/ evals/ scripts/
 
 test:
-	pytest -v
+	PATH="$(HOME)/.local/bin:$$PATH" pytest -v
 
 test-unit:
-	pytest -v tests/unit/
+	PATH="$(HOME)/.local/bin:$$PATH" pytest -v tests/unit/
 
 test-integration:
-	pytest -v tests/integration/
+	PATH="$(HOME)/.local/bin:$$PATH" pytest -v tests/integration/
 
 run:
 	uvicorn app.main:app --reload --host 0.0.0.0 --port 8000

@@ -10,6 +10,7 @@ import logging
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from app.providers.llm_provider import get_llm
+from app.rag.types import chunks_to_texts
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +23,11 @@ _SYSTEM = (
 )
 
 
-def evaluate(answer: str, contexts: list[str], question: str = "") -> float:
+def evaluate(
+    answer: str,
+    contexts: list[str] | list[dict],
+    question: str = "",
+) -> float:
     """Compute a grounding score for the answer relative to the retrieved context.
 
     Args:
@@ -36,7 +41,7 @@ def evaluate(answer: str, contexts: list[str], question: str = "") -> float:
     if not answer or not contexts:
         return 0.0
 
-    context_str = "\n\n---\n\n".join(contexts[:5])
+    context_str = "\n\n---\n\n".join(chunks_to_texts(contexts)[:5])
     try:
         llm = get_llm()
         response = llm.invoke(

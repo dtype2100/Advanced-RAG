@@ -11,6 +11,8 @@ def test_query_runs_or_fails_gracefully(client):
         data = resp.json()
         assert "answer" in data
         assert "sources" in data
+        if data["sources"]:
+            assert "text" in data["sources"][0]
 
 
 def test_query_missing_body_returns_422(client):

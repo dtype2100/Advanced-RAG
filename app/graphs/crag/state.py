@@ -7,10 +7,9 @@ so that nodes only need to return the keys they actually update.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, TypedDict
+from typing import Any, TypedDict
 
-if TYPE_CHECKING:
-    pass
+from app.rag.types import ChunkHit
 
 
 class CRAGState(TypedDict, total=False):
@@ -29,9 +28,9 @@ class CRAGState(TypedDict, total=False):
                                 current query should be reformulated before retrieval.
         clarification_question: The concrete question to surface to the user when
                                 ``needs_clarification`` is True.
-        retrieved_children:     Child-level (small) chunk texts from the retriever.
-        expanded_contexts:      Parent / big chunks after context-expansion (parent-
-                                child or small-to-big).
+        retrieved_children:     Child-level chunk hits from the retriever
+                                (``{text, score, metadata}`` dicts).
+        expanded_contexts:      Parent / big chunks after context-expansion.
         retrieval_attempt:      Number of retrieval + rewrite cycles executed so far.
         hallucination_attempt:  Number of hallucination-check + re-generation cycles.
         grounding_score:        Float in [0, 1] from the grounding evaluator.
@@ -48,11 +47,12 @@ class CRAGState(TypedDict, total=False):
     needs_clarification: bool
     needs_rewrite: bool
     clarification_question: str
-    retrieved_children: list[str]
-    expanded_contexts: list[str]
+    retrieved_children: list[ChunkHit]
+    expanded_contexts: list[ChunkHit]
     retrieval_attempt: int
     hallucination_attempt: int
     grounding_score: float
     judge_verdict: Any  # JudgeVerdict | None
     answer: str
     final_status: str
+    top_k: int

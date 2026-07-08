@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from app.providers.judge_llm_provider import get_judge_llm
+from app.rag.types import chunks_to_texts
 
 logger = logging.getLogger(__name__)
 
@@ -76,7 +77,7 @@ class JudgeVerdict:
 def judge(
     question: str,
     answer: str,
-    contexts: list[str],
+    contexts: list[str] | list[dict],
 ) -> JudgeVerdict:
     """Run the LLM judge and return a structured ``JudgeVerdict``.
 
@@ -91,7 +92,7 @@ def judge(
     if not answer or not contexts:
         return JudgeVerdict(error="Missing answer or contexts")
 
-    context_str = "\n\n---\n\n".join(contexts[:5])
+    context_str = "\n\n---\n\n".join(chunks_to_texts(contexts)[:5])
 
     try:
         llm = get_judge_llm()

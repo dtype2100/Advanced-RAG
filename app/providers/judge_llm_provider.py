@@ -12,7 +12,6 @@ Environment variables:
 from __future__ import annotations
 
 import logging
-import os
 
 from langchain_openai import ChatOpenAI
 
@@ -32,12 +31,12 @@ def get_judge_llm() -> ChatOpenAI:
     if _judge_llm is not None:
         return _judge_llm
 
-    backend = os.getenv("JUDGE_LLM_BACKEND", settings.llm_backend).lower()
-    model = os.getenv("JUDGE_LLM_MODEL", settings.llm_model)
-    temperature = float(os.getenv("JUDGE_LLM_TEMPERATURE", "0.0"))
+    backend = (settings.judge_llm_backend or settings.llm_backend).lower()
+    model = settings.judge_llm_model or settings.llm_model
+    temperature = settings.judge_llm_temperature
 
     if backend == "vllm":
-        base_url = os.getenv("JUDGE_VLLM_BASE_URL", settings.vllm_base_url)
+        base_url = settings.judge_vllm_base_url or settings.vllm_base_url
         logger.info("Judge LLM provider: vLLM @ %s  model=%s", base_url, model)
         _judge_llm = ChatOpenAI(
             model=model,

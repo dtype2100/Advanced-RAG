@@ -26,6 +26,15 @@ dev = [
     "ruff>=0.8.0",
     "mypy>=1.13.0",
 ]
+bm25 = [
+    "rank_bm25>=0.2.2",
+]
+reranker = [
+    "sentence-transformers>=3.0.0",
+]
+loaders = [
+    "pymupdf>=1.24.0",
+]
 
 [build-system]
 requires = ["hatchling"]

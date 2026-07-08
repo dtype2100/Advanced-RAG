@@ -7,6 +7,7 @@ import logging
 from fastapi import APIRouter
 
 from app.core.config import settings
+from app.core.llm_health import probe_llm
 from app.providers.vectorstore_provider import get_vectorstore
 from app.schemas.response import HealthResponse
 
@@ -39,6 +40,7 @@ async def health() -> HealthResponse:
         status="ok",
         llm_backend=settings.llm_backend,
         llm_model=settings.llm_model,
+        llm=probe_llm(),
         qdrant=qdrant_status,
         collection=collection_status,
     )

@@ -5,12 +5,21 @@ from __future__ import annotations
 from pydantic import BaseModel
 
 
+class SourceCitation(BaseModel):
+    """Structured citation for a retrieved document chunk."""
+
+    text: str
+    source: str = "unknown"
+    page: str = ""
+    score: float = 0.0
+
+
 class ChatResponse(BaseModel):
     """Response from the RAG chat pipeline."""
 
     question: str
     answer: str
-    sources: list[str]
+    sources: list[SourceCitation]
     retries: int
     clarification_needed: bool = False
     clarification_question: str | None = None
@@ -36,5 +45,6 @@ class HealthResponse(BaseModel):
     status: str
     llm_backend: str
     llm_model: str
+    llm: str
     qdrant: str
     collection: str

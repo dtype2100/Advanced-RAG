@@ -13,7 +13,6 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from app.core.config import settings
 from app.graphs.crag.state import CRAGState
 from app.providers.llm_provider import get_llm
-from app.providers.vectorstore_provider import get_vectorstore
 
 logger = logging.getLogger(__name__)
 
@@ -81,31 +80,33 @@ def rewrite_query(state: CRAGState) -> dict:
 
 
 def hybrid_retrieve(state: CRAGState) -> dict:
-    """Retrieve relevant child chunks using hybrid (vector + BM25) search.
-
-    When ``multi_query`` mode is enabled via env var ``MULTI_QUERY=1``,
-    generates additional query variants and fuses the retrieval results.
-    """
-    import os
+    """Retrieve child chunks via hybrid search with optional multi-query RRF fusion."""
+    from app.rag.retrievers.corpus_registry import get_corpus_docs
+    from app.rag.retrievers.hybrid_retriever import hybrid_retrieve as run_hybrid
+    from app.rag.retrievers.hybrid_retriever import reciprocal_rank_fusion
 
     query = _active_query(state)
     attempt = state.get("retrieval_attempt", 0) + 1
     logger.info("Retrieval attempt %d for: %s", attempt, query)
 
+    top_k = state.get("top_k") or settings.max_retrieval_docs
     queries = [query]
-    if os.getenv("MULTI_QUERY", "0") == "1":
+    if settings.multi_query:
         from app.rag.query.multi_query_generator import generate_multi_query
 
         queries = generate_multi_query(query, n=3)
         logger.info("Multi-query: %d variants", len(queries))
 
-    store = get_vectorstore()
-    seen: dict[str, dict] = {}
-    for q in queries:
-        for r in store.search(q, top_k=settings.max_retrieval_docs):
-            seen.setdefault(r["text"], r)
-
-    children = list(seen.values())
+    corpus_docs = get_corpus_docs()
+    retrieval_k = max(top_k, top_k * 4)
+    ranked_lists = [
+        run_hybrid(q, corpus_docs=corpus_docs or None, top_k=retrieval_k) for q in queries
+    ]
+    children = (
+        reciprocal_rank_fusion(ranked_lists)[:retrieval_k]
+        if len(ranked_lists) > 1
+        else ranked_lists[0][:retrieval_k]
+    )
     return {"retrieved_children": children, "retrieval_attempt": attempt}
 
 
@@ -113,10 +114,35 @@ def hybrid_retrieve(state: CRAGState) -> dict:
 
 
 def expand_context(state: CRAGState) -> dict:
-    """Expand child hits to parent / larger chunks (small-to-big strategy)."""
-    children = state.get("retrieved_children", [])
+    """Expand child hits to parent chunks when parent metadata is available."""
+    from app.rag.retrievers.corpus_registry import get_docstore
+    from app.rag.retrievers.parent_child_retriever import fetch_parents
+    from app.rag.types import chunk_text, normalize_chunks
+
+    children = normalize_chunks(state.get("retrieved_children", []))
     logger.info("Expanding %d child chunks to parent context", len(children))
-    return {"expanded_contexts": children}
+
+    docstore = get_docstore()
+    if docstore:
+        expanded = fetch_parents(children, docstore)
+        return {"expanded_contexts": expanded}
+
+    expanded: list[dict] = []
+    seen_texts: set[str] = set()
+    for child in children:
+        meta = child.get("metadata") or {}
+        parent_text = meta.get("parent_text")
+        text = parent_text or chunk_text(child)
+        if text and text not in seen_texts:
+            seen_texts.add(text)
+            expanded.append(
+                {
+                    "text": text,
+                    "score": child.get("score", 0.0),
+                    "metadata": {**meta, "expanded": "true"},
+                }
+            )
+    return {"expanded_contexts": expanded or children}
 
 
 # ── rerank_context ────────────────────────────────────────────────────────────
@@ -132,7 +158,8 @@ def rerank_context(state: CRAGState) -> dict:
 
     reranker = get_reranker()
     if reranker is not None:
-        contexts = reranker.rerank(query, contexts)
+        top_k = state.get("top_k") or settings.rerank_top_k
+        contexts = reranker.rerank(query, contexts, top_k=top_k)
 
     return {"expanded_contexts": contexts}
 
@@ -195,6 +222,7 @@ def evaluate_grounding(state: CRAGState) -> dict:
     score = evaluate(
         answer=state.get("answer", ""),
         contexts=state.get("expanded_contexts") or state.get("retrieved_children", []),
+        question=_active_query(state),
     )
     logger.info("Grounding score: %.2f", score)
     return {"grounding_score": score}

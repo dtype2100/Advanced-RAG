@@ -109,6 +109,40 @@ def hybrid_retrieve(state: CRAGState) -> dict:
     return {"retrieved_children": children, "retrieval_attempt": attempt}
 
 
+# ── test_retrieval ────────────────────────────────────────────────────────────
+
+
+def test_retrieval(state: CRAGState) -> dict:
+    """Test retrieved context quality: expand, rerank, and relevance filter.
+
+    Phase 4 of the improvement loop (search → **test** → evaluation).
+    """
+    from app.providers.reranker_provider import get_reranker
+    from app.rag.guards.relevance_guard import filter_relevant
+    from app.rag.policies.expansion_policy import should_expand
+
+    children = state.get("retrieved_children", [])
+    query = _active_query(state)
+
+    if should_expand(state):
+        contexts = expand_context(state).get("expanded_contexts", children)
+    else:
+        contexts = children
+    logger.info("Test phase: evaluating %d candidate chunks", len(contexts))
+
+    reranker = get_reranker()
+    if reranker is not None:
+        contexts = reranker.rerank(query, contexts)
+
+    filtered = filter_relevant(contexts)
+    logger.info(
+        "Test phase: %d → %d contexts passed relevance filter",
+        len(contexts),
+        len(filtered),
+    )
+    return {"expanded_contexts": filtered}
+
+
 # ── expand_context ────────────────────────────────────────────────────────────
 
 
@@ -211,3 +245,40 @@ def retry_with_policy(state: CRAGState) -> dict:
         "hallucination_attempt": attempt,
         "needs_rewrite": True,
     }
+
+
+def retry_retrieval(state: CRAGState) -> dict:
+    """Feedback: low faithfulness — loop back to search with a rewritten query."""
+    attempt = state.get("hallucination_attempt", 0) + 1
+    retrieval = state.get("retrieval_attempt", 0) + 1
+    logger.info(
+        "Feedback retry_retrieval: hallucination=%d retrieval=%d",
+        attempt,
+        retrieval,
+    )
+    return {
+        "hallucination_attempt": attempt,
+        "retrieval_attempt": retrieval,
+        "needs_rewrite": True,
+    }
+
+
+def retry_generation(state: CRAGState) -> dict:
+    """Feedback: low overall score — regenerate answer without re-retrieval."""
+    attempt = state.get("hallucination_attempt", 0) + 1
+    logger.info("Feedback retry_generation: attempt %d/%d", attempt, settings.max_retries)
+    return {"hallucination_attempt": attempt}
+
+
+def finalize_ok(state: CRAGState) -> dict:
+    """Mark the pipeline as successfully completed."""
+    return {"final_status": "ok"}
+
+
+def finalize_rejected(state: CRAGState) -> dict:
+    """Mark the pipeline as rejected after exhausting feedback retries."""
+    answer = state.get("answer", "")
+    suffix = " [Answer did not pass quality verification]"
+    if suffix not in answer:
+        answer = f"{answer}{suffix}".strip()
+    return {"final_status": "rejected", "answer": answer}

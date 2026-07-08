@@ -13,6 +13,7 @@ Question → Retrieve (Qdrant) → Grade Documents (LLM) →┐
 
 **Key features:**
 - Self-corrective retrieval: automatically rewrites queries when documents are irrelevant
+- **Improvement loop**: analysis → verification → search → test → evaluation → verification → feedback
 - **vLLM**: local HuggingFace model serving via OpenAI-compatible API (CPU/GPU)
 - Qdrant vector store with FastEmbed (local embeddings, no API calls for embedding)
 - LangGraph `StateGraph` with conditional edges for the RAG loop
@@ -149,8 +150,25 @@ make lint      # Run linter
 make format    # Auto-format
 make test      # Run tests
 make run       # Start FastAPI dev server
+make evals     # Run full improvement loop (analysis → feedback)
 make vllm-serve  # Start vLLM on port 8001
 ```
+
+## Improvement Loop
+
+Runtime (CRAG graph) and offline evals (`make evals`) follow the same phase order:
+
+| Phase | Graph node(s) | Offline eval |
+|-------|---------------|--------------|
+| Analysis | `analyze_query` | `run_clarification_eval.py` |
+| Verification | `decide_rewrite`, `rewrite_query` | (graph integration tests) |
+| Search | `hybrid_retrieve` | `run_retrieval_eval.py` |
+| Test | `test_retrieval` | `pytest tests/unit` |
+| Evaluation | `generate_answer`, `run_judge` | `run_answer_eval.py` |
+| Verification | `evaluate_grounding` | `run_judge_eval.py` |
+| Feedback | `retry_*`, `finalize_*` | `run_feedback_eval.py` |
+
+Canonical definition: `app/core/improvement_loop.py`
 
 ## Project Structure
 

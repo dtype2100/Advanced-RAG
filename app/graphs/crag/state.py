@@ -56,3 +56,4 @@ class CRAGState(TypedDict, total=False):
     answer: str
     final_status: str
     top_k: int
+    chat_history: list[dict[str, Any]]

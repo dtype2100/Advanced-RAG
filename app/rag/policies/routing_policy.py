@@ -78,14 +78,24 @@ def route_after_judge(state: dict[str, Any]) -> str:
 
 
 def route_after_grounding(state: dict[str, Any]) -> str:
-    """After grounding evaluation, decide whether to retry.
+    """After grounding evaluation, accept, invoke judge, or end at max retries.
 
-    Delegates to ``retry_policy.should_retry`` for the loop decision.
+    High grounding scores short-circuit to ``end``.  Low scores trigger the
+    LLM judge for a nuanced retry/reject decision before looping.
 
     Returns:
-        ``"retry_with_policy"`` when grounding score is too low and retries remain.
-        ``"end"``               otherwise.
+        ``"end"``        when grounding passes or retries are exhausted.
+        ``"run_judge"``  when grounding is low and judge evaluation is warranted.
     """
-    from app.rag.policies.retry_policy import should_retry
+    from app.core.config import settings
 
-    return "retry_with_policy" if should_retry(state) else "end"
+    grounding_score = state.get("grounding_score", 1.0)
+    attempts = state.get("hallucination_attempt", 0)
+
+    if grounding_score >= settings.grounding_threshold:
+        return "end"
+
+    if attempts >= settings.max_retries:
+        return "end"
+
+    return "run_judge"

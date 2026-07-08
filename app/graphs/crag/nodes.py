@@ -177,16 +177,25 @@ def generate_answer(state: CRAGState) -> dict:
         context_str = "(No relevant documents found)"
     logger.info("Generating answer from %d context chunks", len(contexts))
 
+    history = state.get("chat_history") or []
+    history_block = ""
+    if history:
+        lines = [f"{m.get('role', 'user').title()}: {m.get('content', '')}" for m in history[-6:]]
+        history_block = "Conversation history:\n" + "\n".join(lines) + "\n\n"
+
     llm = get_llm()
     response = llm.invoke(
         [
             SystemMessage(
                 content=(
                     "You are a helpful AI assistant. Answer the user's question based ONLY on the "
-                    "provided context. If the context does not contain enough information, say so."
+                    "provided context. If the context does not contain enough information, say so. "
+                    "Use conversation history only for disambiguation, not as a factual source."
                 )
             ),
-            HumanMessage(content=f"Context:\n{context_str}\n\nQuestion: {query}\n\nAnswer:"),
+            HumanMessage(
+                content=(f"{history_block}Context:\n{context_str}\n\nQuestion: {query}\n\nAnswer:")
+            ),
         ]
     )
     return {"answer": response.content.strip()}
@@ -229,6 +238,12 @@ def evaluate_grounding(state: CRAGState) -> dict:
 
 
 # ── retry_with_policy ─────────────────────────────────────────────────────────
+
+
+def mark_rejected(state: CRAGState) -> dict:
+    """Mark the pipeline as rejected after judge evaluation at max retries."""
+    logger.info("Judge rejected answer after max retries")
+    return {"final_status": "rejected"}
 
 
 def retry_with_policy(state: CRAGState) -> dict:

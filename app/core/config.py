@@ -37,8 +37,13 @@ class Settings(BaseSettings):
     use_parent_child_chunking: bool = True
     reranker_backend: str = "none"  # none | cross_encoder | llm
     rerank_top_k: int = 5
+    grounding_threshold: float = 0.6
 
-    # ── Vector store backend ─────────────────────────────────────────────────
+    # ── CORS (Web UI) ────────────────────────────────────────────────────────
+    cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
+
+    # ── Chat history ─────────────────────────────────────────────────────────
+    chat_history_max_messages: int = 20
     vector_backend: str = "qdrant"  # qdrant | pgvector
 
     # ── Judge LLM (optional override for evaluation) ─────────────────────────

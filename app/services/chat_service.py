@@ -14,16 +14,34 @@ logger = logging.getLogger(__name__)
 def _build_initial_state(
     question: str,
     top_k: int | None = None,
+    chat_history: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Build the initial CRAG graph state for a user question."""
     state: dict[str, Any] = {
         "user_query": question,
         "retrieval_attempt": 0,
         "hallucination_attempt": 0,
+        "chat_history": chat_history or [],
     }
     if top_k is not None:
         state["top_k"] = top_k
     return state
+
+
+def _persist_session(
+    session_id: str | None,
+    question: str,
+    answer: str,
+) -> None:
+    """Append user/assistant turns to chat history when a session is provided."""
+    if not session_id:
+        return
+
+    from app.storage.chat_history import get_chat_history_store
+
+    store = get_chat_history_store()
+    store.append(session_id, {"role": "user", "content": question})
+    store.append(session_id, {"role": "assistant", "content": answer})
 
 
 def run_chat(
@@ -47,11 +65,18 @@ def run_chat(
             "final_status": "blocked",
         }
 
-    initial_state = _build_initial_state(question, top_k=top_k)
+    history: list[dict[str, Any]] = []
+    if session_id:
+        from app.storage.chat_history import get_chat_history_store
+
+        history = get_chat_history_store().get(session_id)
+
+    initial_state = _build_initial_state(question, top_k=top_k, chat_history=history)
 
     try:
         result = crag_chain.invoke(initial_state)
         logger.info("Chat completed, status=%s", result.get("final_status", "ok"))
+        _persist_session(session_id, question, result.get("answer", ""))
         return result
     except Exception:
         logger.exception("Chat service error for question: %s", question[:80])
@@ -82,4 +107,10 @@ def stream_chat(
         }
         return
 
-    yield from crag_chain.stream(_build_initial_state(question, top_k=top_k))
+    history: list[dict[str, Any]] = []
+    if session_id:
+        from app.storage.chat_history import get_chat_history_store
+
+        history = get_chat_history_store().get(session_id)
+
+    yield from crag_chain.stream(_build_initial_state(question, top_k=top_k, chat_history=history))

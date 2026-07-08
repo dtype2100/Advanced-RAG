@@ -114,13 +114,27 @@ evals/                      # Offline evaluation scripts
 
 See `.env.example` for the full list.
 
+## Web UI
+
+```bash
+# Terminal 1: API
+make run
+
+# Terminal 2: React dev server (proxies to API via VITE_API_BASE)
+cd web && npm install && npm run dev
+```
+
+Open http://localhost:5173 for Chat + Studio pages.
+
 ## Development
 
 ```bash
 make dev       # Install with dev tools
 make lint      # Run linter
 make format    # Auto-format
-make test      # Run all tests
+make test      # Run all tests (includes eval smoke tests)
+make test-evals # Offline eval smoke tests only
+make web-dev   # Start React Web UI on port 5173
 make test-unit # Unit tests only
 make evals     # Offline evaluation scripts
 make run       # Start FastAPI dev server

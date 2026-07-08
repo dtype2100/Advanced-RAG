@@ -5,11 +5,13 @@ from __future__ import annotations
 from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.v1.chat import router as chat_router
 from app.api.v1.health import router as health_router
 from app.api.v1.ingest import router as ingest_router
 from app.api.v1.jobs import router as jobs_router
+from app.api.v1.studio import router as studio_router
 from app.core.config import settings
 from app.core.logging import configure_logging, get_logger
 from app.core.security import verify_api_key
@@ -53,6 +55,16 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+_cors_origins = [origin.strip() for origin in settings.cors_origins.split(",") if origin.strip()]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_cors_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 app.include_router(health_router, prefix="/api/v1")
 app.include_router(
     ingest_router,
@@ -69,6 +81,7 @@ app.include_router(
     prefix="/api/v1",
     dependencies=[Depends(verify_api_key)],
 )
+app.include_router(studio_router, prefix="/api/v1")
 
 
 @app.get("/")
@@ -78,4 +91,5 @@ async def root():
         "service": "Advanced RAG API",
         "version": "0.2.0",
         "docs": "/docs",
+        "web_ui": "http://localhost:5173",
     }

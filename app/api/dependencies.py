@@ -6,6 +6,7 @@ vector store, LLM, and optional API-key auth guard.
 
 from __future__ import annotations
 
+from app.core.security import verify_api_key
 from app.providers.vectorstore_provider import get_vectorstore
 from app.storage.vectorstores.base import VectorStorePort
 
@@ -13,3 +14,7 @@ from app.storage.vectorstores.base import VectorStorePort
 def get_store() -> VectorStorePort:
     """Dependency: return the active vector store instance."""
     return get_vectorstore()
+
+
+# Protect mutating / expensive endpoints when API_KEY is set.
+RequireAPIKey = verify_api_key

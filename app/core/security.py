@@ -12,12 +12,14 @@ _API_KEY_HEADER = APIKeyHeader(name="X-API-Key", auto_error=False)
 
 
 async def verify_api_key(api_key: str | None = Security(_API_KEY_HEADER)) -> None:
-    """Validate the X-API-Key header if a key is configured.
+    """Validate the X-API-Key header when ``API_KEY`` is configured.
 
-    Currently a no-op stub: configure ``API_KEY`` env var to enable.
+    When ``API_KEY`` is empty, authentication is disabled (development mode).
     """
     from app.core.config import settings
 
-    configured_key = getattr(settings, "api_key", "")
-    if configured_key and api_key != configured_key:
+    if not settings.auth_enabled:
+        return
+
+    if api_key != settings.api_key:
         raise HTTPException(status_code=401, detail="Invalid or missing API key")

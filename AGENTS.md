@@ -38,6 +38,7 @@
 - **FastEmbed first-run download:** `BAAI/bge-small-en-v1.5` (~130MB) downloads on first use to `~/.cache/fastembed/`.
 - **Model download:** Run `huggingface-cli download Qwen/Qwen2.5-0.5B-Instruct --local-dir models/Qwen2.5-0.5B-Instruct` to get the model (~950MB).
 - **Ruff binary:** After pip install, ruff is at `~/.local/bin/ruff`. Ensure `PATH` includes `$HOME/.local/bin`.
+- **Production ops:** Set `API_KEY`, use `/api/v1/health/ready` for readiness, scrape `/metrics` with Prometheus. CI runs via `.github/workflows/ci.yml`.
 ### Repository Overview
 - **Project:** Advanced-RAG (Retrieval-Augmented Generation)
 - **Status:** Newly initialized repository with only a `README.md`. No source code, dependencies, or services exist yet.

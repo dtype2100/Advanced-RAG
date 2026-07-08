@@ -6,16 +6,23 @@ import logging
 import sys
 
 
-def configure_logging(level: str = "INFO") -> None:
+def configure_logging(level: str | None = None) -> None:
     """Configure root logger with a structured format.
 
     Args:
         level: Log level string, e.g. "DEBUG", "INFO", "WARNING".
+               Defaults to ``settings.log_level`` when omitted.
     """
+    if level is None:
+        from app.core.config import settings
+
+        level = settings.log_level
+
     logging.basicConfig(
         level=getattr(logging, level.upper(), logging.INFO),
         format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
         stream=sys.stdout,
+        force=True,
     )
 
 

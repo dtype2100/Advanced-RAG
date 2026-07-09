@@ -13,6 +13,7 @@ Question → Retrieve (Qdrant) → Grade Documents (LLM) →┐
 
 **Key features:**
 - Self-corrective retrieval: automatically rewrites queries when documents are irrelevant
+- **Improvement loop**: analysis → verification → search → test → evaluation → verification → feedback
 - **vLLM**: local HuggingFace model serving via OpenAI-compatible API (CPU/GPU)
 - Qdrant vector store with FastEmbed (local embeddings, no API calls for embedding)
 - LangGraph `StateGraph` with conditional edges for the RAG loop
@@ -71,10 +72,73 @@ curl -X POST http://localhost:8000/api/v1/query \
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/` | Service info |
-| GET | `/api/v1/health` | Health check (Qdrant + LLM status) |
+| GET | `/api/v1/health` | Health summary (dependencies + status) |
+| GET | `/api/v1/health/live` | Liveness probe (process alive) |
+| GET | `/api/v1/health/ready` | Readiness probe (503 if not ready) |
+| GET | `/metrics` | Prometheus metrics |
 | POST | `/api/v1/documents` | Ingest documents into vector store |
+| POST | `/api/v1/documents/async` | Async ingest (requires Redis + worker) |
+| GET | `/api/v1/jobs/{job_id}` | Async job status |
 | POST | `/api/v1/search` | Semantic search (no LLM required) |
-| POST | `/api/v1/query` | Full self-corrective RAG pipeline |
+| POST | `/api/v1/query` | Full CRAG RAG pipeline |
+
+## Production / Operations
+
+### Docker Compose (recommended)
+
+```bash
+cp .env.example .env
+# Set API_KEY, QDRANT_URL is auto-configured in compose
+docker compose up -d
+```
+
+Services: `api` (8000), `qdrant` (6333), `redis` (6379), `worker`.
+
+The API container exposes a readiness healthcheck on `/api/v1/health/ready`.
+
+### Security
+
+Set `API_KEY` in production. All data endpoints require the header:
+
+```bash
+curl -H "X-API-Key: your-secret-key" \
+  -X POST http://localhost:8000/api/v1/search \
+  -H "Content-Type: application/json" \
+  -d '{"query": "test", "top_k": 3}'
+```
+
+When `API_KEY` is empty, auth is disabled (development only).
+
+### Observability
+
+| Endpoint | Purpose |
+|----------|---------|
+| `/metrics` | Prometheus (HTTP latency, RAG queries, ingest counts) |
+| `/api/v1/health/live` | Kubernetes liveness |
+| `/api/v1/health/ready` | Kubernetes readiness (vector store + optional Redis/LLM) |
+
+Logs include `request_id` via the `X-Request-ID` header (auto-generated if omitted).
+
+### CI
+
+GitHub Actions runs `make lint` and `make test` on push/PR.
+
+### Automatic improvement loop
+
+| Trigger | Workflow | Command |
+|---------|----------|---------|
+| Daily 06:00 UTC | `.github/workflows/improvement-loop.yml` | `make evals-ci` |
+| Push to `master` | same | `make evals-ci` |
+| Manual dispatch | same | `full_loop=true` → `make evals` (needs `OPENAI_API_KEY` secret) |
+
+CI-safe loop skips the LLM judge phase. Full loop requires vLLM or OpenAI.
+
+**Cursor Cloud Automation:** copy the prompt from `.cursor/automation/improvement-loop.md` into Dashboard → Automations.
+
+```bash
+make evals-ci   # CI-safe (no LLM)
+make evals      # full loop
+```
 
 ## LLM Backend Configuration
 
@@ -103,8 +167,25 @@ make lint      # Run linter
 make format    # Auto-format
 make test      # Run tests
 make run       # Start FastAPI dev server
+make evals     # Run full improvement loop (analysis → feedback)
 make vllm-serve  # Start vLLM on port 8001
 ```
+
+## Improvement Loop
+
+Runtime (CRAG graph) and offline evals (`make evals`) follow the same phase order:
+
+| Phase | Graph node(s) | Offline eval |
+|-------|---------------|--------------|
+| Analysis | `analyze_query` | `run_clarification_eval.py` |
+| Verification | `decide_rewrite`, `rewrite_query` | (graph integration tests) |
+| Search | `hybrid_retrieve` | `run_retrieval_eval.py` |
+| Test | `test_retrieval` | `pytest tests/unit` |
+| Evaluation | `generate_answer`, `run_judge` | `run_answer_eval.py` |
+| Verification | `evaluate_grounding` | `run_judge_eval.py` |
+| Feedback | `retry_*`, `finalize_*` | `run_feedback_eval.py` |
+
+Canonical definition: `app/core/improvement_loop.py`
 
 ## Project Structure
 
@@ -143,3 +224,10 @@ tests/
 | `COLLECTION_NAME` | `advanced_rag` | Qdrant collection name |
 | `MAX_RETRIEVAL_DOCS` | `5` | Top-K retrieval count |
 | `MAX_RETRIES` | `3` | Max query rewrite retries |
+| `API_KEY` | (empty) | Enable API key auth when set |
+| `CORS_ORIGINS` | `*` | Comma-separated allowed origins |
+| `RATE_LIMIT_PER_MINUTE` | `120` | Per-IP rate limit (0 = disabled) |
+| `ENABLE_METRICS` | `true` | Expose `/metrics` endpoint |
+| `HEALTH_CHECK_LLM` | `false` | Include LLM ping in readiness |
+| `LOG_LEVEL` | `INFO` | Application log level |
+| `REDIS_URL` | (empty) | Redis for async ingest |

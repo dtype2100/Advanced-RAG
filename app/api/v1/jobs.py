@@ -5,8 +5,9 @@ from __future__ import annotations
 import logging
 
 from arq.jobs import Job, JobStatus
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
+from app.api.dependencies import RequireAPIKey
 from app.core.config import settings
 from app.queue.pool import get_arq_pool
 from app.schemas.document import JobStatusResponse
@@ -17,7 +18,7 @@ router = APIRouter()
 
 
 @router.get("/jobs/{job_id}", response_model=JobStatusResponse, tags=["jobs"])
-async def get_job_status(job_id: str) -> JobStatusResponse:
+async def get_job_status(job_id: str, _: None = Depends(RequireAPIKey)) -> JobStatusResponse:
     """Return the status and result of an async ingest job."""
     if not settings.redis_url:
         raise HTTPException(status_code=503, detail="Job status requires REDIS_URL.")

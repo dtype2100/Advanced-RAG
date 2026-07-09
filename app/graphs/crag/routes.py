@@ -15,6 +15,7 @@ from app.core.config import settings
 from app.graphs.crag.state import CRAGState
 from app.rag.policies.routing_policy import (
     route_after_clarification_check,
+    route_after_feedback,
     route_after_grounding,
     route_after_judge,
     route_after_retrieval,
@@ -67,6 +68,19 @@ def route_after_grounding_eval(state: CRAGState) -> str:
     result = route_after_grounding(state)
     logger.info(
         "Route after grounding → %s (score=%.2f, attempt %d/%d)",
+        result,
+        state.get("grounding_score", 0.0),
+        state.get("hallucination_attempt", 0),
+        settings.max_retries,
+    )
+    return result
+
+
+def route_after_feedback_eval(state: CRAGState) -> str:
+    """Route after post-verification — feedback loop or end."""
+    result = route_after_feedback(state)
+    logger.info(
+        "Route after feedback → %s (grounding=%.2f, attempt %d/%d)",
         result,
         state.get("grounding_score", 0.0),
         state.get("hallucination_attempt", 0),

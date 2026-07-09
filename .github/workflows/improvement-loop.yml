@@ -1,0 +1,68 @@
+name: Improvement Loop
+
+on:
+  schedule:
+    # Daily at 06:00 UTC — automated quality regression check
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+    inputs:
+      full_loop:
+        description: "Run full loop including LLM judge (requires secrets)"
+        required: false
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
+  push:
+    branches: [master]
+    paths:
+      - "app/**"
+      - "evals/**"
+      - "tests/**"
+      - "scripts/run_evals.py"
+      - "app/core/improvement_loop.py"
+
+jobs:
+  improvement-loop:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -e ".[dev]"
+
+      - name: Lint
+        run: make lint
+
+      - name: Test (integration + unit)
+        run: make test
+
+      - name: Improvement loop (CI-safe)
+        if: github.event.inputs.full_loop != 'true'
+        run: make evals-ci
+        env:
+          IMPROVEMENT_LOOP_CI: "1"
+
+      - name: Improvement loop (full, with LLM judge)
+        if: github.event.inputs.full_loop == 'true'
+        run: make evals
+        env:
+          LLM_BACKEND: openai
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+
+  notify-on-failure:
+    needs: improvement-loop
+    if: failure() && github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Log failure
+        run: |
+          echo "::error::Scheduled improvement loop failed. Check the Actions tab."
+          echo "Phases: analysis → search → test → evaluation → feedback (CI mode)"

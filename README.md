@@ -123,6 +123,23 @@ Logs include `request_id` via the `X-Request-ID` header (auto-generated if omitt
 
 GitHub Actions runs `make lint` and `make test` on push/PR.
 
+### Automatic improvement loop
+
+| Trigger | Workflow | Command |
+|---------|----------|---------|
+| Daily 06:00 UTC | `.github/workflows/improvement-loop.yml` | `make evals-ci` |
+| Push to `master` | same | `make evals-ci` |
+| Manual dispatch | same | `full_loop=true` → `make evals` (needs `OPENAI_API_KEY` secret) |
+
+CI-safe loop skips the LLM judge phase. Full loop requires vLLM or OpenAI.
+
+**Cursor Cloud Automation:** copy the prompt from `.cursor/automation/improvement-loop.md` into Dashboard → Automations.
+
+```bash
+make evals-ci   # CI-safe (no LLM)
+make evals      # full loop
+```
+
 ## LLM Backend Configuration
 
 ### vLLM (default, local)

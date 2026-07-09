@@ -47,6 +47,9 @@ vllm-serve:
 evals:
 	$(PYTHON) scripts/run_evals.py
 
+evals-ci:
+	IMPROVEMENT_LOOP_CI=1 $(PYTHON) scripts/run_evals.py --ci
+
 clean:
 	find . -type d -name __pycache__ -exec rm -rf {} +
 	find . -type d -name .pytest_cache -exec rm -rf {} +

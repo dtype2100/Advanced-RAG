@@ -9,6 +9,7 @@ Each phase maps to concrete nodes (runtime) or scripts (offline).
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from typing import Literal
 
@@ -31,6 +32,7 @@ class PipelinePhase:
     label: str
     graph_nodes: tuple[str, ...]
     eval_target: str | None = None
+    requires_llm: bool = False
 
 
 # Ordered loop — do not reorder without updating graph.py and run_evals.py together.
@@ -67,9 +69,10 @@ IMPROVEMENT_LOOP: tuple[PipelinePhase, ...] = (
     ),
     PipelinePhase(
         name="verification_post",
-        label="Grounding verification",
+        label="Grounding verification (LLM-as-judge)",
         graph_nodes=("evaluate_grounding",),
         eval_target="evals/offline/run_judge_eval.py",
+        requires_llm=True,
     ),
     PipelinePhase(
         name="feedback",
@@ -84,6 +87,19 @@ IMPROVEMENT_LOOP: tuple[PipelinePhase, ...] = (
         eval_target="evals/offline/run_feedback_eval.py",
     ),
 )
+
+
+def is_ci_mode() -> bool:
+    """True when running the CI-safe subset (no vLLM/OpenAI required)."""
+    return os.getenv("IMPROVEMENT_LOOP_CI", "").lower() in {"1", "true", "yes"}
+
+
+def iter_eval_phases(*, ci: bool | None = None) -> tuple[PipelinePhase, ...]:
+    """Return phases to execute, optionally skipping LLM-dependent steps."""
+    use_ci = is_ci_mode() if ci is None else ci
+    if not use_ci:
+        return IMPROVEMENT_LOOP
+    return tuple(p for p in IMPROVEMENT_LOOP if not p.requires_llm)
 
 
 def graph_node_order() -> list[str]:

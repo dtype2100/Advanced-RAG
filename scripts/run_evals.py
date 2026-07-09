@@ -1,17 +1,19 @@
 """CLI script — run the full improvement loop (analysis → feedback).
 
 Usage:
-    python scripts/run_evals.py
-    make evals
+    python scripts/run_evals.py           # full loop (needs LLM for judge phase)
+    python scripts/run_evals.py --ci    # CI-safe subset (no LLM)
+    IMPROVEMENT_LOOP_CI=1 make evals-ci
 """
 
 from __future__ import annotations
 
+import argparse
 import logging
 import subprocess
 import sys
 
-from app.core.improvement_loop import IMPROVEMENT_LOOP
+from app.core.improvement_loop import iter_eval_phases
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -32,9 +34,21 @@ def _run_script(script: str) -> int:
 
 def main() -> None:
     """Run each improvement-loop phase in canonical order."""
+    parser = argparse.ArgumentParser(description="Run the Advanced-RAG improvement loop")
+    parser.add_argument(
+        "--ci",
+        action="store_true",
+        help="Skip LLM-dependent phases (safe for GitHub Actions without vLLM)",
+    )
+    args = parser.parse_args()
+
+    phases = iter_eval_phases(ci=args.ci)
+    if args.ci:
+        logger.info("CI mode: skipping LLM-dependent phases")
+
     failed: list[str] = []
 
-    for phase in IMPROVEMENT_LOOP:
+    for phase in phases:
         logger.info("=== Phase [%s] %s ===", phase.name, phase.label)
 
         if phase.name == "verification" and phase.eval_target is None:

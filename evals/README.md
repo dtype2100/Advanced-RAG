@@ -10,7 +10,10 @@ Frozen corpus and golden cases for this CRAG stack. Retrieval labels are
 | `corpus/docs.jsonl` | Ingest snapshot. Each record is one section with stable ids. |
 | `datasets/cases.jsonl` | Golden cases: query, qrels, reference answer, policy labels. |
 | `datasets/fixtures/judge_eval.jsonl` | Canned (question, context, answer) pairs for the LLM judge. |
-| `offline/` | Scripts that ingest the corpus and print metrics. |
+| `offline/` | Scripts that ingest the corpus, score metrics, and record runs. |
+| `results/history.jsonl` | Append-only ledger of headline metrics (tracked). |
+| `results/latest.json` / `latest.md` | Most recent golden snapshot (tracked). |
+| `results/runs/` | Full per-case dumps (gitignored). |
 
 ## Case schema
 
@@ -26,7 +29,14 @@ Qrels use graded relevance `2` (supports the answer) or `1` (partially useful).
 make evals
 # or
 python scripts/run_evals.py
+python evals/offline/run_golden_eval.py --note "why this run exists"
+make evals-history
 ```
+
+Each golden/judge run appends one row to `results/history.jsonl`, writes
+`results/latest.json` + `latest.md`, and stores the full per-case dump under
+`results/runs/<run_id>/`. Use `--no-record` to skip persistence. `EVAL_NOTE`
+is copied onto the ledger row when `--note` is omitted.
 
 `run_retrieval_eval.py` / `run_golden_eval.py` ingest `corpus/docs.jsonl` into the
 in-memory Qdrant client for that process, then score Recall@5 / MRR / nDCG@5.

@@ -2,42 +2,26 @@
 
 from __future__ import annotations
 
-import json
 import logging
+import sys
 from pathlib import Path
 
-from app.rag.evaluators.retrieval_evaluator import evaluate_retrieval
-from app.rag.retrievers.retrieval_orchestrator import retrieve
+logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-DATASET = Path(__file__).parent.parent / "datasets" / "retrieval_eval.jsonl"
+from evals.offline.harness import format_summary, run_golden_eval  # noqa: E402
 
 
 def run() -> None:
-    """Run retrieval evaluation against the JSONL dataset and print results."""
-    results_summary = []
-    with DATASET.open() as f:
-        for line in f:
-            item = json.loads(line)
-            query = item["query"]
-            results = retrieve(query, top_k=5)
-            metrics = evaluate_retrieval(query, results)
-            logger.info(
-                "Query: %s | Coverage: %.2f | Avg score: %.4f",
-                query,
-                metrics["coverage_ratio"],
-                metrics["avg_score"],
-            )
-            results_summary.append({"query": query, **metrics})
-
-    avg_coverage = (
-        sum(r["coverage_ratio"] for r in results_summary) / len(results_summary)
-        if results_summary
-        else 0.0
+    """Ingest the frozen corpus and print retrieval ranking metrics."""
+    report = run_golden_eval()
+    print("\n" + format_summary(report))
+    overall = report["retrieval"]["overall"]
+    print(
+        f"\nOverall recall@5: {overall['recall_at_k']:.2%}  "
+        f"nDCG@5: {overall['ndcg_at_k']:.3f}  hit@5: {overall['hit_at_k']:.2%}"
     )
-    print(f"\nOverall average coverage: {avg_coverage:.2%}")
 
 
 if __name__ == "__main__":

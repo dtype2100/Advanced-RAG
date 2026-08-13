@@ -1,0 +1,2 @@
+# Full per-case dumps (can be large). Headline ledger + latest snapshot are tracked.
+runs/

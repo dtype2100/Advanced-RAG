@@ -1,4 +1,4 @@
-.PHONY: install dev lint format test run vllm-serve worker evals clean
+.PHONY: install dev lint format test run vllm-serve worker evals evals-history clean
 
 install:
 	pip install -e .
@@ -43,6 +43,9 @@ vllm-serve:
 
 evals:
 	python scripts/run_evals.py
+
+evals-history:
+	python evals/offline/show_history.py
 
 clean:
 	find . -type d -name __pycache__ -exec rm -rf {} +

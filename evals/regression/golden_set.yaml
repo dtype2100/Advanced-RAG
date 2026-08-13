@@ -1,20 +1,33 @@
+# Smoke subset of evals/datasets/cases.jsonl used as a human-readable index.
+# Full graded labels live in the JSONL golden set.
 golden_set:
-  - id: "rag_basic"
+  - id: "factual_001"
     query: "What is retrieval augmented generation?"
     expected_intent: "factual"
     expected_clarification: false
     expected_rewrite: false
     min_grounding_score: 0.6
 
-  - id: "ambiguous_time"
+  - id: "factual_002"
+    query: "What is RAG?"
+    expected_intent: "factual"
+    expected_clarification: false
+    expected_rewrite: true
+
+  - id: "clarify_001"
     query: "What happened when?"
     expected_clarification: true
     expected_slot: "time_period"
 
-  - id: "short_query_rewrite"
+  - id: "rewrite_001"
     query: "AI"
     expected_clarification: false
     expected_rewrite: true
+
+  - id: "unanswerable_001"
+    query: "What is the capital of France?"
+    unanswerable: true
+    expected_judge_action: "reject"
 
   - id: "judge_hallucination"
     query: "What is the capital of France?"

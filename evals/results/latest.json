@@ -1,0 +1,307 @@
+{
+  "run_id": "20260813T234452Z-golden-091cc79",
+  "kind": "golden",
+  "recorded_at": "2026-08-13T23:44:52.233357+00:00",
+  "duration_ms": 1675,
+  "note": "baseline: dense retrieval on frozen 28-section corpus",
+  "git": {
+    "sha": "091cc796332807292411157c2bb65e7f26b0119a",
+    "short_sha": "091cc79",
+    "branch": "cursor/rag-eval-dataset-70ff",
+    "dirty": false
+  },
+  "config": {
+    "embedding_model": "BAAI/bge-small-en-v1.5",
+    "collection_name": "advanced_rag",
+    "max_retrieval_docs": 5,
+    "llm_backend": "vllm",
+    "llm_model": "Qwen/Qwen2.5-0.5B-Instruct",
+    "qdrant_in_memory": true
+  },
+  "dataset": {
+    "corpus_path": "evals/corpus/docs.jsonl",
+    "cases_path": "evals/datasets/cases.jsonl",
+    "corpus_sha256": "1846defb15147eaa8c6477d9c847f59a77f45e7fc6ff074d8af04d2b65a7d1e5",
+    "cases_sha256": "f4a9e7952d8cad61094700653162a0a972b49d5665038f2558621566cbd9c062"
+  },
+  "metrics": {
+    "hit_at_k": 1.0,
+    "recall_at_k": 0.9456521739130435,
+    "mrr": 0.8956521739130435,
+    "ndcg_at_k": 0.8965239130434782,
+    "fact_support": 0.9782608695652174,
+    "retrieval_n": 46,
+    "clarification_accuracy": 1.0,
+    "rewrite_accuracy": 1.0
+  },
+  "delta_vs_previous": {},
+  "misses": [
+    {
+      "id": "comparison_001",
+      "query": "What is the difference between dense vector search and BM25 in this pipeline?",
+      "recall_at_k": 0.5,
+      "mrr": 1.0,
+      "ndcg_at_k": 0.8262,
+      "fact_support": 1.0,
+      "tags": [
+        "comparison",
+        "hybrid"
+      ]
+    },
+    {
+      "id": "paraphrase_001",
+      "query": "How do we stop the model from making things up after it writes an answer?",
+      "recall_at_k": 0.5,
+      "mrr": 0.2,
+      "ndcg_at_k": 0.1065,
+      "fact_support": 0.5,
+      "tags": [
+        "paraphrase",
+        "hallucination"
+      ]
+    },
+    {
+      "id": "paraphrase_004",
+      "query": "How do we mix keyword matching with meaning-based search?",
+      "recall_at_k": 0.5,
+      "mrr": 1.0,
+      "ndcg_at_k": 0.8262,
+      "fact_support": 1.0,
+      "tags": [
+        "paraphrase",
+        "hybrid"
+      ]
+    },
+    {
+      "id": "multihop_002",
+      "query": "What embedding dimension and collection name does the default stack use?",
+      "recall_at_k": 0.5,
+      "mrr": 0.25,
+      "ndcg_at_k": 0.2641,
+      "fact_support": 0.5,
+      "tags": [
+        "multi-hop"
+      ]
+    },
+    {
+      "id": "multihop_005",
+      "query": "After analyze_query, which graph step expands context instead of going straight to rerank?",
+      "recall_at_k": 0.5,
+      "mrr": 1.0,
+      "ndcg_at_k": 0.8262,
+      "fact_support": 1.0,
+      "tags": [
+        "multi-hop",
+        "graph"
+      ]
+    }
+  ],
+  "corpus_sections": 28,
+  "chunks_indexed": 28,
+  "case_count": 55,
+  "by_difficulty": {
+    "easy": {
+      "n": 18,
+      "hit_at_k": 1.0,
+      "recall_at_k": 1.0,
+      "mrr": 0.9166666666666666,
+      "ndcg_at_k": 0.9384833333333334,
+      "fact_support": 1.0
+    },
+    "medium": {
+      "n": 17,
+      "hit_at_k": 1.0,
+      "recall_at_k": 0.9705882352941176,
+      "mrr": 0.9705882352941176,
+      "ndcg_at_k": 0.956105882352941,
+      "fact_support": 1.0
+    },
+    "hard": {
+      "n": 11,
+      "hit_at_k": 1.0,
+      "recall_at_k": 0.8181818181818182,
+      "mrr": 0.7454545454545454,
+      "ndcg_at_k": 0.7357818181818182,
+      "fact_support": 0.9090909090909091
+    }
+  },
+  "by_tag": {
+    "api": {
+      "n": 2,
+      "hit_at_k": 1.0,
+      "recall_at_k": 1.0,
+      "mrr": 1.0,
+      "ndcg_at_k": 1.0,
+      "fact_support": 1.0
+    },
+    "async": {
+      "n": 2,
+      "hit_at_k": 1.0,
+      "recall_at_k": 1.0,
+      "mrr": 1.0,
+      "ndcg_at_k": 1.0,
+      "fact_support": 1.0
+    },
+    "chunking": {
+      "n": 3,
+      "hit_at_k": 1.0,
+      "recall_at_k": 1.0,
+      "mrr": 0.75,
+      "ndcg_at_k": 0.8102333333333332,
+      "fact_support": 1.0
+    },
+    "comparison": {
+      "n": 6,
+      "hit_at_k": 1.0,
+      "recall_at_k": 0.9166666666666666,
+      "mrr": 1.0,
+      "ndcg_at_k": 0.9371499999999999,
+      "fact_support": 1.0
+    },
+    "definition": {
+      "n": 3,
+      "hit_at_k": 1.0,
+      "recall_at_k": 1.0,
+      "mrr": 1.0,
+      "ndcg_at_k": 1.0,
+      "fact_support": 1.0
+    },
+    "eval": {
+      "n": 1,
+      "hit_at_k": 1.0,
+      "recall_at_k": 1.0,
+      "mrr": 1.0,
+      "ndcg_at_k": 1.0,
+      "fact_support": 1.0
+    },
+    "graph": {
+      "n": 2,
+      "hit_at_k": 1.0,
+      "recall_at_k": 0.75,
+      "mrr": 1.0,
+      "ndcg_at_k": 0.9131,
+      "fact_support": 1.0
+    },
+    "hallucination": {
+      "n": 2,
+      "hit_at_k": 1.0,
+      "recall_at_k": 0.75,
+      "mrr": 0.6,
+      "ndcg_at_k": 0.55325,
+      "fact_support": 0.75
+    },
+    "hybrid": {
+      "n": 3,
+      "hit_at_k": 1.0,
+      "recall_at_k": 0.6666666666666666,
+      "mrr": 1.0,
+      "ndcg_at_k": 0.8841333333333333,
+      "fact_support": 1.0
+    },
+    "judge": {
+      "n": 1,
+      "hit_at_k": 1.0,
+      "recall_at_k": 1.0,
+      "mrr": 1.0,
+      "ndcg_at_k": 1.0,
+      "fact_support": 1.0
+    },
+    "keyword": {
+      "n": 9,
+      "hit_at_k": 1.0,
+      "recall_at_k": 1.0,
+      "mrr": 0.9444444444444444,
+      "ndcg_at_k": 0.9589888888888889,
+      "fact_support": 1.0
+    },
+    "multi-hop": {
+      "n": 5,
+      "hit_at_k": 1.0,
+      "recall_at_k": 0.8,
+      "mrr": 0.75,
+      "ndcg_at_k": 0.74604,
+      "fact_support": 0.9
+    },
+    "ops": {
+      "n": 1,
+      "hit_at_k": 1.0,
+      "recall_at_k": 1.0,
+      "mrr": 1.0,
+      "ndcg_at_k": 1.0,
+      "fact_support": 1.0
+    },
+    "paraphrase": {
+      "n": 5,
+      "hit_at_k": 1.0,
+      "recall_at_k": 0.8,
+      "mrr": 0.6900000000000001,
+      "ndcg_at_k": 0.67268,
+      "fact_support": 0.9
+    },
+    "pipeline": {
+      "n": 1,
+      "hit_at_k": 1.0,
+      "recall_at_k": 1.0,
+      "mrr": 1.0,
+      "ndcg_at_k": 1.0,
+      "fact_support": 1.0
+    },
+    "policy": {
+      "n": 3,
+      "hit_at_k": 1.0,
+      "recall_at_k": 1.0,
+      "mrr": 0.6666666666666666,
+      "ndcg_at_k": 0.7569333333333333,
+      "fact_support": 1.0
+    },
+    "procedural": {
+      "n": 6,
+      "hit_at_k": 1.0,
+      "recall_at_k": 1.0,
+      "mrr": 1.0,
+      "ndcg_at_k": 1.0,
+      "fact_support": 1.0
+    },
+    "rerank": {
+      "n": 1,
+      "hit_at_k": 1.0,
+      "recall_at_k": 1.0,
+      "mrr": 1.0,
+      "ndcg_at_k": 1.0,
+      "fact_support": 1.0
+    },
+    "rewrite": {
+      "n": 3,
+      "hit_at_k": 1.0,
+      "recall_at_k": 1.0,
+      "mrr": 1.0,
+      "ndcg_at_k": 1.0,
+      "fact_support": 1.0
+    },
+    "short-query": {
+      "n": 4,
+      "hit_at_k": 1.0,
+      "recall_at_k": 1.0,
+      "mrr": 1.0,
+      "ndcg_at_k": 1.0,
+      "fact_support": 1.0
+    },
+    "single-hop": {
+      "n": 16,
+      "hit_at_k": 1.0,
+      "recall_at_k": 1.0,
+      "mrr": 0.875,
+      "ndcg_at_k": 0.907725,
+      "fact_support": 1.0
+    },
+    "storage": {
+      "n": 1,
+      "hit_at_k": 1.0,
+      "recall_at_k": 1.0,
+      "mrr": 1.0,
+      "ndcg_at_k": 1.0,
+      "fact_support": 1.0
+    }
+  },
+  "report_path": "runs/20260813T234452Z-golden-091cc79/report.json"
+}

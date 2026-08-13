@@ -28,10 +28,22 @@ make evals
 python scripts/run_evals.py
 ```
 
-`run_retrieval_eval.py` ingests `corpus/docs.jsonl` into the in-memory Qdrant
-client for that process, then scores Recall@5 / MRR / nDCG@5.
+`run_retrieval_eval.py` / `run_golden_eval.py` ingest `corpus/docs.jsonl` into the
+in-memory Qdrant client for that process, then score Recall@5 / MRR / nDCG@5.
 
 Judge eval is skipped when the LLM backend is unreachable.
+
+Baseline on this corpus (dense retrieval, k=5, 46 labelled queries):
+Hit@5 100%, Recall@5 ~95%, nDCG@5 ~0.90. Hard / paraphrase / multi-hop cases
+are the ones that miss a second supporting section. Treat this as a regression
+snapshot on 28 sections, not a production-scale IR benchmark.
+
+## Query wording vs clarification heuristics
+
+`query_analyzer` flags `when` without a four-digit year as `time_period`, and
+`where` without `in`/`at` as `location`. Retrieval cases in this set are phrased
+to avoid those tokens so they actually reach search. Dedicated `clarify_*`
+items exist to lock the current heuristic.
 
 ## Adding cases
 
